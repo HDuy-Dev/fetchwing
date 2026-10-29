@@ -45,8 +45,24 @@ const state = {
 
 export const inspectedTabId = chrome.devtools?.inspectedWindow?.tabId ?? (Number(new URLSearchParams(location.search).get('tabId')) || null);
 
-const isDark = chrome.devtools?.panels?.themeName === 'dark' || (!chrome.devtools?.panels && matchMedia('(prefers-color-scheme: dark)').matches);
-document.documentElement.dataset.mode = isDark ? 'dark' : 'light';
+// Theme is chosen in the panel; the first time it starts from the DevTools theme.
+const devtoolsDark = chrome.devtools?.panels?.themeName === 'dark' || (!chrome.devtools?.panels && matchMedia('(prefers-color-scheme: dark)').matches);
+let mode = store.get('mode', devtoolsDark ? 'dark' : 'light');
+
+function applyMode() {
+  document.documentElement.dataset.mode = mode;
+  const next = mode === 'dark' ? 'light' : 'dark';
+  const btn = document.getElementById('themeBtn');
+  btn.replaceChildren(icon(next === 'light' ? 'sun' : 'moon'));
+  btn.setAttribute('aria-label', `Switch to ${next} theme`);
+  btn.title = `Switch to ${next} theme`;
+}
+applyMode();
+document.getElementById('themeBtn').addEventListener('click', () => {
+  mode = mode === 'dark' ? 'light' : 'dark';
+  store.set('mode', mode);
+  applyMode();
+});
 
 export async function mutate(mutation) {
   const res = await send({ type: 'mutate', mutation });
