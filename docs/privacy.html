@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy Policy — Fetchwing</title>
+<link rel="icon" href="icon-128.png">
+<style>
+  body { margin: 0; background: #f5f7fb; color: #172033; font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 40px 16px 64px; }
+  h1 { font-size: 28px; margin: 0 0 4px; }
+  h2 { color: #0f766e; font-size: 20px; margin-top: 32px; }
+  .updated, .foot { color: #4b586c; font-size: 14px; }
+  table { width: 100%; border-collapse: collapse; background: #fff; font-size: 15px; }
+  th, td { border: 1px solid #d8dfea; padding: 8px 10px; text-align: left; vertical-align: top; }
+  th { background: #e6f4f2; }
+  code { background: #e6f4f2; padding: 1px 4px; border-radius: 4px; font-size: 14px; word-break: break-all; }
+  a { color: #0f766e; }
+  @media (prefers-color-scheme: dark) {
+    body { background: #0f1520; color: #e6ebf2; }
+    h2, a { color: #2dd4bf; }
+    .updated, .foot { color: #a3afc2; }
+    table { background: #151d2b; }
+    th, td { border-color: #2a3648; }
+    th, code { background: #1b2536; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>Privacy Policy — Fetchwing</h1>
+  <p class="updated">Last updated: 2026-10-29</p>
+  <p>Fetchwing is a browser extension that adds an API client and response mocking to Chrome DevTools. This policy explains what data the extension handles and where it goes.</p>
+
+  <h2>Summary</h2>
+  <ul>
+    <li>Your requests, collections, mocks and environments are stored <strong>in your browser</strong>. If you sign in, they are also stored <strong>in one file in your own Google Drive</strong>.</li>
+    <li>The developer runs <strong>no servers</strong> and receives <strong>none</strong> of your data. There is no analytics, advertising or tracking, and no data is sold or shared.</li>
+    <li>Variables you mark <strong>secret</strong> never leave your device.</li>
+  </ul>
+
+  <h2>Data the extension handles</h2>
+  <table>
+    <tr><th>Data</th><th>Where it is stored</th><th>Why</th></tr>
+    <tr><td>Your collections, folders, requests (URLs, headers, cookies, bodies), mocks and environments</td><td>Your browser's extension storage (<code>chrome.storage.local</code>), plus your own Google Drive file <code>Fetchwing data</code> when signed in</td><td>To show, send, mock and sync them</td></tr>
+    <tr><td>Values of variables marked secret</td><td>Your browser's extension storage only; they are uploaded as empty values</td><td>To use them in your requests</td></tr>
+    <tr><td>Your Google account email address</td><td>Your browser's extension storage</td><td>To show which account is signed in, and to ask before syncing into a different account</td></tr>
+    <tr><td>A temporary Google access token (about 1 hour)</td><td>Your browser's session storage, cleared when the browser closes</td><td>To read and write your Drive file</td></tr>
+    <tr><td>Which sites mocks run on, which mocks are on, and your theme</td><td>Your browser only (not synced)</td><td>To run mocks and remember your settings</td></tr>
+  </table>
+
+  <h2>Network requests</h2>
+  <ul>
+    <li><strong>Requests you send:</strong> they go only to the URLs you send them to, with the headers, cookies and body you set.</li>
+    <li><strong>Google:</strong> sign-in (<code>accounts.google.com</code>), your email address (<code>openidconnect.googleapis.com</code>), and reading and writing your Drive file (<code>www.googleapis.com</code>). Scopes requested: <code>openid</code>, <code>email</code> and <code>https://www.googleapis.com/auth/drive.file</code>. With <code>drive.file</code> the extension can only see files it created itself, not the rest of your Drive.</li>
+  </ul>
+
+  <h2>Site access and mocks</h2>
+  <p>Fetchwing asks for access to a site the first time you send a request to it or turn on a mock for it. It never asks for all sites at install. You can remove access in Fetchwing's Settings or in <code>chrome://extensions</code>.</p>
+  <p>On the sites where you run mocks, Fetchwing adds a small script to the page so that the page's own <code>fetch</code> and <code>XMLHttpRequest</code> calls receive your mock responses. Scripts on those pages can read the list of mocks that are on: method, URL, status, headers and body. Do not put real secrets in mock responses for sites you do not trust.</p>
+
+  <h2>Google API Services User Data Policy</h2>
+  <p>Fetchwing's use and transfer of information received from Google APIs adheres to the <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>, including the Limited Use requirements.</p>
+
+  <p>Fetchwing is not affiliated with Google. Google Drive is a trademark of Google LLC.</p>
+
+  <h2>Deleting your data</h2>
+  <ul>
+    <li>Sign out in Fetchwing (the cloud button) to stop syncing. Delete the <code>Fetchwing data</code> file in Google Drive to remove the synced copy.</li>
+    <li>Remove the extension to delete everything stored in your browser.</li>
+    <li>Revoke Fetchwing's Google access at <a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a>.</li>
+  </ul>
+
+  <h2>Changes and contact</h2>
+  <p>Changes to this policy are published on this page with a new date. Questions: <a href="https://github.com/HDuy-Dev/fetchwing/issues">open an issue on GitHub</a>.</p>
+  <p class="foot"><a href="./">Fetchwing home</a></p>
+</main>
+</body>
+</html>

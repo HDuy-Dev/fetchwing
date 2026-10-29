@@ -1,10 +1,12 @@
 {
   "name": "fetchwing",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "scripts": {
     "test": "node --test \"tests/*.test.js\"",
-    "sync": "node scripts/sync-mock-main.mjs"
+    "sync": "node scripts/sync-mock-main.mjs",
+    "build": "sh scripts/build.sh",
+    "images": "sh scripts/render-images.sh"
   }
 }
