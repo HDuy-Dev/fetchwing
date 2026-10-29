@@ -130,6 +130,12 @@ export function applyMutation(ws, m, now) {
       touch(m.id, { mock: { ...item.mock, ...patch } });
       return { workspace: next };
     }
+    case 'disableAllMocks': {
+      for (const r of liveRequests(next)) {
+        if (r.mock.enabled) touch(r.id, { mock: { ...r.mock, enabled: false } });
+      }
+      return { workspace: next };
+    }
     case 'addEnvironment': {
       const order = liveEnvironments(next).length;
       next.environments[m.id] = { id: m.id, name: String(m.name ?? '').trim() || 'Environment', order, vars: [], updatedAt: now, deleted: false };

@@ -8,6 +8,7 @@ import { executeSend } from './lib/send.js';
 
 const SCRIPT_IDS = ['fw-bridge', 'fw-main'];
 let nextRuleId = 1000;
+const inFlight = new Map(); // requestId -> AbortController
 
 let queue = Promise.resolve();
 function enqueue(fn) {
@@ -100,6 +101,9 @@ async function handle(msg) {
       if (resolved.missing.length) return { ok: false, error: `Unresolved variables: ${resolved.missing.join(', ')}` };
       if (!originOf(resolved.url)) return { ok: false, error: 'Enter a full URL starting with http:// or https://' };
       nextRuleId = nextRuleId >= 1_000_000 ? 1000 : nextRuleId + 1;
+      inFlight.get(msg.requestId)?.abort();
+      const controller = new AbortController();
+      inFlight.set(msg.requestId, controller);
       try {
         const response = await executeSend({
           resolved,
@@ -107,12 +111,19 @@ async function handle(msg) {
           dnr: chrome.declarativeNetRequest,
           now: () => performance.now(),
           ruleId: nextRuleId,
+          signal: controller.signal,
         });
         return { ok: true, response };
       } catch (err) {
+        if (controller.signal.aborted) return { ok: false, error: 'Cancelled', cancelled: true };
         return { ok: false, error: `Could not get a response: ${err?.message || err}` };
+      } finally {
+        if (inFlight.get(msg.requestId) === controller) inFlight.delete(msg.requestId);
       }
     }
+    case 'cancelSend':
+      inFlight.get(msg.requestId)?.abort();
+      return { ok: true };
     case 'addMockSite':
     case 'removeMockSite': {
       const origin = originOf(msg.origin);
