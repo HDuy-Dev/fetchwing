@@ -1,0 +1,443 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fetchwing Redesign v2</title>
+<style>
+  /* ---------- tokens: teal, dark (default) ---------- */
+  [data-mode="dark"] {
+    --bg: #0f1520; --surface: #151d2b; --surface-2: #1b2536; --hover: #222e42; --select: #26344b;
+    --divider: #2a3648; --control: #5b6b82;
+    --text: #e6ebf2; --muted: #a3afc2; --faint: #8b98ad;
+    --accent: #2dd4bf; --accent-fill: #2dd4bf; --accent-ink: #042f2e; --accent-line: #2dd4bf; --accent-soft: rgba(45,212,191,.14);
+    --get: #4ade80; --post: #fbbf24; --put: #60a5fa; --patch: #c084fc; --delete: #f87171;
+    --mock: #fb7185; --mock-soft: rgba(251,113,133,.10); --ok: #4ade80; --warn: #fbbf24; --err: #f87171; --err-soft: rgba(248,113,113,.10);
+    --j-key: #93c5fd; --j-str: #86efac; --j-num: #fcd34d; --j-lit: #f9a8d4;
+    --shadow: 0 10px 30px rgba(0,0,0,.45);
+  }
+  /* light: fills and accent text use the darker teal so white/teal text passes 4.5:1 */
+  [data-mode="light"] {
+    --bg: #f5f7fb; --surface: #ffffff; --surface-2: #f0f3f8; --hover: #e9eef6; --select: #dfe8f3;
+    --divider: #d8dfea; --control: #8592a6;
+    --text: #172033; --muted: #4b586c; --faint: #5f6e83;
+    --accent: #0f766e; --accent-fill: #0f766e; --accent-ink: #ffffff; --accent-line: #0d9488; --accent-soft: rgba(13,148,136,.12);
+    --get: #15803d; --post: #a16207; --put: #1d4ed8; --patch: #7e22ce; --delete: #b91c1c;
+    --mock: #be123c; --mock-soft: rgba(190,18,60,.08); --ok: #15803d; --warn: #a16207; --err: #b91c1c; --err-soft: rgba(185,28,28,.07);
+    --j-key: #1d4ed8; --j-str: #15803d; --j-num: #a16207; --j-lit: #be185d;
+    --shadow: 0 10px 30px rgba(15,23,42,.14);
+  }
+  /* spacing 4px scale, radii 4/6/8 */
+  :root { --r-sm: 4px; --r-md: 6px; --r-lg: 8px; }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; background: #0b0f17; color: #e6ebf2; font: 13px/1.45 Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 20px 16px; }
+  .picker { max-width: 1200px; margin: 0 auto 8px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .picker .label { color: #a3afc2; margin: 0 4px 0 8px; }
+  .picker button { font: inherit; padding: 6px 12px; border-radius: 18px; border: 1px solid #2a3648; background: #151d2b; color: #e6ebf2; cursor: pointer; }
+  .picker button[aria-pressed="true"] { border-color: #2dd4bf; color: #2dd4bf; font-weight: 600; }
+  .note { max-width: 1200px; margin: 0 auto 12px; color: #a3afc2; font-size: 12px; }
+
+  /* ---------- app frame (container queries drive the responsive rules) ---------- */
+  .frame { margin: 0 auto; transition: width .2s, height .2s; }
+  .app { width: 100%; height: 100%; display: flex; flex-direction: column; background: var(--bg); color: var(--text); border: 1px solid var(--divider); border-radius: var(--r-lg); overflow: hidden; box-shadow: var(--shadow); container-type: size; container-name: app; position: relative; }
+  svg.i { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  .mono { font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  :where(button, [role="tab"], [role="treeitem"], input, [tabindex]):focus-visible { outline: 2px solid var(--accent-line); outline-offset: 1px; border-radius: var(--r-sm); }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+  .top { display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 12px; background: var(--surface); border-bottom: 1px solid var(--divider); flex-shrink: 0; }
+  .logo { display: flex; align-items: center; gap: 8px; font-weight: 700; }
+  .mark { width: 22px; height: 22px; border-radius: var(--r-md); background: linear-gradient(135deg, #2dd4bf, #0f766e); display: grid; place-items: center; color: #ffffff; }
+  .mark svg { width: 14px; height: 14px; stroke-width: 2.2; }
+  .search { flex: 1; max-width: 420px; margin: 0 auto; display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 8px 0 12px; border-radius: var(--r-lg); background: var(--surface-2); border: 1px solid var(--control); color: var(--faint); }
+  .search kbd, kbd { font: 11px/1 inherit; padding: 2px 6px; border: 1px solid var(--control); border-radius: var(--r-sm); color: var(--muted); }
+  .search kbd { margin-left: auto; }
+  .search-icon { display: none; }
+  .btn { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border-radius: var(--r-lg); border: 1px solid var(--control); background: var(--surface-2); color: var(--text); white-space: nowrap; }
+  .btn:hover { background: var(--hover); }
+  .btn .lbl-short { display: none; }
+  .mock-chip { border-color: var(--mock); color: var(--mock); background: var(--mock-soft); font-weight: 600; }
+  .icon-btn { width: 30px; height: 30px; display: grid; place-items: center; border-radius: var(--r-lg); border: 0; background: transparent; color: var(--muted); }
+  .icon-btn:hover { background: var(--hover); color: var(--text); }
+  .badge-mock { display: inline-flex; align-items: center; gap: 4px; padding: 1px 6px; border-radius: var(--r-sm); border: 1px solid var(--mock); color: var(--mock); background: var(--mock-soft); font: 700 11px/16px Inter, -apple-system, sans-serif; letter-spacing: .3px; white-space: nowrap; }
+  .badge-mock svg { width: 12px; height: 12px; stroke-width: 2.2; }
+
+  .body { flex: 1; display: flex; min-height: 0; position: relative; }
+  .rail { width: 56px; background: var(--surface); border-right: 1px solid var(--divider); display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 0; flex-shrink: 0; }
+  .rail button { width: 48px; padding: 6px 0 4px; border: 0; border-radius: var(--r-lg); background: transparent; color: var(--muted); display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 11px; position: relative; }
+  .rail button:hover { background: var(--hover); color: var(--text); }
+  .rail button[aria-current="page"] { background: var(--accent-soft); color: var(--accent); }
+  .rail .n { position: absolute; top: 2px; right: 6px; min-width: 16px; height: 16px; border-radius: 8px; background: var(--mock); color: #fff; font: 700 11px/16px Inter, sans-serif; }
+  [data-mode="light"] .rail .n { color: #fff; }
+
+  .side { width: 248px; background: var(--surface); border-right: 1px solid var(--divider); display: flex; flex-direction: column; flex-shrink: 0; }
+  .side-head { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px 4px; }
+  .side-head h2 { margin: 0; font-size: 12px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); }
+  .side-actions { display: flex; gap: 4px; padding: 4px 12px 8px; }
+  .split { display: inline-flex; flex: 1; }
+  .split .btn:first-child { flex: 1; border-radius: var(--r-lg) 0 0 var(--r-lg); border-color: var(--accent-line); color: var(--accent); background: transparent; font-weight: 600; justify-content: center; }
+  .split .btn:last-child { border-radius: 0 var(--r-lg) var(--r-lg) 0; border-left: 0; border-color: var(--accent-line); color: var(--accent); background: transparent; padding: 0 8px; }
+  .split .btn:hover { background: var(--accent-soft); }
+  .tree { flex: 1; overflow: auto; padding: 0 4px 8px; }
+  .node { display: flex; align-items: center; gap: 6px; width: 100%; height: 28px; padding: 0 8px 0 calc(8px + var(--d, 0) * 14px); border: 0; border-radius: var(--r-md); background: transparent; text-align: left; white-space: nowrap; }
+  .node:hover { background: var(--hover); }
+  .node[aria-selected="true"] { background: var(--select); }
+  .node .caret { color: var(--faint); width: 12px; }
+  .node .name { overflow: hidden; text-overflow: ellipsis; flex: 1; }
+  .node.col .name { font-weight: 600; }
+  .m { font: 700 11px/1 "JetBrains Mono", ui-monospace, Menlo, monospace; width: 46px; flex-shrink: 0; }
+  .m.GET { color: var(--get); } .m.POST { color: var(--post); } .m.PUT { color: var(--put); } .m.PATCH { color: var(--patch); } .m.DELETE { color: var(--delete); }
+  .folder { color: var(--faint); }
+
+  .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .tabs-open { display: flex; align-items: flex-end; gap: 2px; height: 38px; padding: 0 8px; background: var(--surface); border-bottom: 1px solid var(--divider); overflow-x: auto; scrollbar-width: thin; flex-shrink: 0; }
+  .otab { display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 4px 0 12px; border: 0; border-radius: var(--r-lg) var(--r-lg) 0 0; background: transparent; color: var(--muted); max-width: 230px; flex-shrink: 0; }
+  .otab .m { width: auto; }
+  .otab .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .otab[aria-selected="true"] { background: var(--bg); color: var(--text); box-shadow: inset 0 2px 0 var(--accent-line); }
+  .otab .x { width: 24px; height: 24px; display: grid; place-items: center; border-radius: var(--r-sm); color: var(--faint); }
+  .otab .x:hover { background: var(--hover); color: var(--text); }
+  .unsaved { width: 8px; height: 8px; border-radius: 50%; border: 2px solid var(--muted); }
+  .add-tab { border: 0; background: transparent; color: var(--muted); height: 32px; width: 32px; border-radius: var(--r-lg); flex-shrink: 0; }
+
+  .req { padding: 12px 16px 0; display: flex; flex-direction: column; gap: 8px; overflow: auto; flex-shrink: 1; min-height: 0; }
+  .crumbs { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
+  .crumbs b { color: var(--text); font-weight: 600; }
+  .crumbs .badge-mock { margin-left: 4px; }
+  .urlbar { display: flex; gap: 8px; }
+  .urlgroup { flex: 1; min-width: 0; display: flex; align-items: stretch; height: 38px; border: 1px solid var(--control); border-radius: var(--r-lg); background: var(--surface); overflow: hidden; }
+  .urlgroup:focus-within { border-color: var(--accent-line); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .method { display: flex; align-items: center; gap: 6px; padding: 0 12px; border: 0; border-right: 1px solid var(--divider); font: 700 12px/1 "JetBrains Mono", ui-monospace, monospace; color: var(--get); background: var(--surface-2); }
+  .url { flex: 1; min-width: 0; display: flex; align-items: center; padding: 0 12px; font-size: 12.5px; white-space: nowrap; overflow: hidden; }
+  .var { color: var(--accent); background: var(--accent-soft); border-radius: var(--r-sm); padding: 1px 4px; }
+  .var.missing { color: var(--warn); background: transparent; border-bottom: 2px dashed var(--warn); border-radius: 0; padding: 0 1px; }
+  .url .q { color: var(--muted); }
+  .send { height: 38px; padding: 0 20px; border-radius: var(--r-lg); border: 0; background: var(--accent-fill); color: var(--accent-ink); font-weight: 700; display: inline-flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  .send:hover { filter: brightness(1.06); }
+  .send kbd { border-color: currentColor; color: inherit; }
+  .send.busy { background: var(--surface-2); color: var(--text); border: 1px solid var(--control); }
+  .spinner { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--control); border-top-color: var(--accent-line); animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .var-warning { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--warn); }
+
+  .subtabs { display: flex; gap: 16px; border-bottom: 1px solid var(--divider); }
+  .subtab { border: 0; background: transparent; padding: 8px 0; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px; display: inline-flex; align-items: center; gap: 6px; }
+  .subtab[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent-line); font-weight: 600; }
+  .count { font-size: 11px; color: var(--accent); background: var(--accent-soft); border-radius: 8px; padding: 0 6px; }
+
+  table.kv { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  table.kv th { text-align: left; font-weight: 500; color: var(--faint); font-size: 12px; padding: 4px 8px; border-bottom: 1px solid var(--divider); }
+  table.kv td { padding: 0 8px; height: 32px; border-bottom: 1px solid var(--divider); }
+  table.kv td.cb { width: 36px; }
+  table.kv td.placeholder { color: var(--faint); font-family: "JetBrains Mono", ui-monospace, monospace; }
+  .cbx { width: 24px; height: 24px; display: grid; place-items: center; border: 0; background: transparent; padding: 0; }
+  .cbx span { width: 14px; height: 14px; border-radius: var(--r-sm); border: 1.5px solid var(--accent-line); background: var(--accent-fill); display: grid; place-items: center; color: var(--accent-ink); }
+  .cbx span svg { width: 10px; height: 10px; stroke-width: 3; }
+  .cbx.off span { background: transparent; border-color: var(--control); }
+
+  .resp { flex: 1; display: flex; flex-direction: column; min-height: 120px; margin-top: 8px; border-top: 1px solid var(--divider); background: var(--surface); }
+  .resp-head { display: flex; align-items: center; gap: 16px; padding: 0 16px; border-bottom: 1px solid var(--divider); flex-shrink: 0; }
+  .resp-head .subtab { padding: 8px 0; }
+  .stats { margin-left: auto; display: flex; align-items: center; gap: 12px; font-size: 12px; color: var(--muted); white-space: nowrap; }
+  .status { font-weight: 700; padding: 1px 8px; border-radius: var(--r-sm); }
+  .status.ok { color: var(--ok); background: color-mix(in srgb, var(--ok) 12%, transparent); }
+  .status.err { color: var(--err); background: var(--err-soft); }
+  .stats b { color: var(--text); font-weight: 600; }
+  .mock-banner { display: flex; align-items: center; gap: 8px; margin: 8px 16px 0; padding: 6px 12px; border-radius: var(--r-md); border: 1px solid var(--mock); background: var(--mock-soft); font-size: 12px; color: var(--text); }
+  .mock-banner b { color: var(--mock); }
+  .mock-banner .btn { margin-left: auto; height: 26px; border-color: var(--mock); color: var(--mock); background: transparent; }
+  .resp-tools { display: flex; align-items: center; gap: 8px; padding: 8px 16px; flex-wrap: wrap; }
+  .seg { display: inline-flex; border: 1px solid var(--control); border-radius: var(--r-md); overflow: hidden; }
+  .seg button { border: 0; background: transparent; padding: 4px 12px; min-height: 26px; color: var(--muted); font-size: 12px; }
+  .seg button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+  .ml-auto { margin-left: auto; }
+  pre.code { margin: 0; flex: 1; overflow: auto; padding: 0 16px 16px; font: 12.5px/1.6 "JetBrains Mono", ui-monospace, Menlo, monospace; }
+  pre.code .ln { display: inline-block; width: 28px; color: var(--faint); user-select: none; }
+  .k { color: var(--j-key); } .s { color: var(--j-str); } .n { color: var(--j-num); } .l { color: var(--j-lit); }
+
+  .state-box { margin: 16px; padding: 16px; border-radius: var(--r-lg); display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+  .state-box.err { border: 1px solid var(--err); background: var(--err-soft); }
+  .state-box.err h3 { color: var(--err); }
+  .state-box h3 { margin: 0; font-size: 13px; }
+  .state-box p { margin: 0; color: var(--muted); font-size: 12px; }
+  .empty-main { flex: 1; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 12px; text-align: center; padding: 24px; color: var(--muted); }
+  .empty-main h3 { margin: 0; color: var(--text); font-size: 15px; }
+  .empty-main .actions { display: flex; gap: 8px; }
+  .btn-primary { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 16px; border-radius: var(--r-lg); border: 0; background: var(--accent-fill); color: var(--accent-ink); font-weight: 700; }
+
+  .mockpane { flex: 1; overflow: auto; padding: 12px 16px; display: none; flex-direction: column; gap: 12px; }
+  .mockbar { display: flex; align-items: center; gap: 12px; padding: 8px 12px; border-radius: var(--r-lg); border: 1px solid var(--mock); background: var(--mock-soft); }
+  .switch { width: 34px; height: 20px; border-radius: 10px; background: var(--mock); position: relative; flex-shrink: 0; border: 0; padding: 0; }
+  .switch::after { content: ""; position: absolute; top: 3px; left: 17px; width: 14px; height: 14px; border-radius: 50%; background: #fff; }
+  .mockbar b { color: var(--mock); }
+  .mockbar .hint { color: var(--muted); font-size: 12px; }
+  .fields { display: flex; gap: 12px; flex-wrap: wrap; }
+  .field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+  .field .box { height: 32px; min-width: 110px; display: flex; align-items: center; padding: 0 12px; border: 1px solid var(--control); border-radius: var(--r-md); background: var(--bg); color: var(--text); font-size: 12.5px; }
+  .editor { border: 1px solid var(--control); border-radius: var(--r-lg); background: var(--bg); padding: 8px 0; }
+
+  .menu { position: absolute; right: 120px; top: 40px; z-index: 5; width: 260px; background: var(--surface); border: 1px solid var(--divider); border-radius: var(--r-lg); box-shadow: var(--shadow); padding: 4px; display: none; }
+  .menu .item { display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 8px; border: 0; background: transparent; border-radius: var(--r-md); text-align: left; }
+  .menu .item:hover { background: var(--hover); }
+  .menu .sep { height: 1px; background: var(--divider); margin: 4px 0; }
+  .menu .danger { color: var(--mock); font-weight: 600; }
+  .drawer-toggle { display: none; }
+  [hidden] { display: none !important; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+
+  /* ---------- narrow (right-docked DevTools) ---------- */
+  @container app (max-width: 760px) {
+    .side { position: absolute; left: 56px; top: 0; bottom: 0; z-index: 4; box-shadow: var(--shadow); display: none; }
+    .app.drawer-open .side { display: flex; }
+    .search { display: none; }
+    .search-icon { display: grid; margin-left: auto; }
+    .btn .lbl-long { display: none; }
+    .btn .lbl-short { display: inline; }
+    .drawer-toggle { display: grid; }
+  }
+  @container app (max-width: 560px) {
+    .rail { width: 44px; }
+    .rail button { width: 36px; font-size: 0; gap: 0; }
+    .side { left: 44px; }
+    .urlbar { flex-wrap: wrap; }
+    .urlgroup { flex-basis: 100%; }
+    .send { flex: 1; justify-content: center; }
+    .stats .unit-time, .stats .size { display: none; }
+    .logo .word { display: none; }
+  }
+  .work { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  /* short but wide (bottom dock): request and response side by side */
+  @container app (max-height: 440px) and (min-width: 900px) {
+    .work { flex-direction: row; }
+    .work .req { width: 46%; max-height: none !important; border-right: 1px solid var(--divider); padding-bottom: 8px; }
+    .work .resp { margin-top: 0; border-top: 0; min-height: 0; }
+  }
+  /* ---------- short (bottom-docked DevTools) ---------- */
+  @container app (max-height: 440px) {
+    .top { height: 36px; }
+    .crumbs { display: none; }
+    .req { max-height: 48%; padding-top: 8px; gap: 6px; }
+    table.kv td { height: 28px; }
+    .tabs-open { height: 32px; }
+    .otab { height: 28px; }
+  }
+</style>
+</head>
+<body>
+<div class="picker" role="group" aria-label="Preview controls">
+  <span class="label">Trạng thái:</span>
+  <button data-set="view" data-value="response" aria-pressed="true">Response</button>
+  <button data-set="view" data-value="mock" aria-pressed="false">Mock</button>
+  <button data-set="view" data-value="sending" aria-pressed="false">Đang gửi</button>
+  <button data-set="view" data-value="error" aria-pressed="false">Lỗi mạng</button>
+  <button data-set="view" data-value="var" aria-pressed="false">Biến thiếu</button>
+  <button data-set="view" data-value="empty" aria-pressed="false">Chưa có gì</button>
+  <button data-set="view" data-value="menu" aria-pressed="false">Menu mocks</button>
+</div>
+<div class="picker" role="group" aria-label="Frame">
+  <span class="label">Kích thước:</span>
+  <button data-set="size" data-value="1200x720" aria-pressed="true">Mở rộng 1200×720</button>
+  <button data-set="size" data-value="1200x380" aria-pressed="false">Dock dưới 1200×380</button>
+  <button data-set="size" data-value="520x720" aria-pressed="false">Dock phải 520×720</button>
+  <span class="label">Chế độ:</span>
+  <button data-set="mode" data-value="dark" aria-pressed="true">Dark</button>
+  <button data-set="mode" data-value="light" aria-pressed="false">Light</button>
+</div>
+<p class="note">v2 — đã sửa theo review độc lập. Màu A · Teal. Khi khung hẹp, bấm icon ☰ ở cột trái để mở Collections.</p>
+
+<div class="frame" id="frame" style="width:1200px;height:720px;max-width:100%">
+<div class="app" id="app" data-mode="dark">
+  <header class="top">
+    <div class="logo">
+      <span class="mark" aria-hidden="true"><svg class="i" viewBox="0 0 24 24"><path d="M4 15c4-1 7-4 9-9 1 4 0 8-3 11"/><path d="M10 17c3 0 6-1 10-4"/></svg></span>
+      <span class="word">Fetchwing</span>
+    </div>
+    <div class="search" role="button" tabindex="0" aria-label="Search requests (Command K)"><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>Search requests<kbd>⌘K</kbd></div>
+    <button class="icon-btn search-icon" aria-label="Search requests (Command K)" title="Search (⌘K)"><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></button>
+    <button class="btn mock-chip" id="mockChip" aria-haspopup="menu" title="Mocks that are on">
+      <svg class="i" viewBox="0 0 24 24"><path d="M17 3l4 4-4 4"/><path d="M3 11V9a2 2 0 0 1 2-2h16"/><path d="M7 21l-4-4 4-4"/><path d="M21 13v2a2 2 0 0 1-2 2H3"/></svg>
+      <span class="lbl-long">2 mocks on</span><span class="lbl-short">2</span>
+    </button>
+    <button class="btn" title="Active environment"><svg class="i" viewBox="0 0 24 24"><path d="M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5a2 2 0 0 0 2 2h1"/><path d="M16 3h1a2 2 0 0 1 2 2v5a2 2 0 0 0 2 2 2 2 0 0 0-2 2v5a2 2 0 0 1-2 2h-1"/></svg><span class="lbl-long">Env: Local</span><span class="lbl-short">Local</span><svg class="i" viewBox="0 0 24 24" style="width:12px"><path d="m6 9 6 6 6-6"/></svg></button>
+    <button class="icon-btn" aria-label="Settings" title="Settings"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+  </header>
+
+  <div class="menu" id="mocksMenu" role="menu" aria-label="Mocks on">
+    <button class="item" role="menuitem"><span class="m GET">GET</span>Shop API / Users / List users</button>
+    <button class="item" role="menuitem"><span class="m PATCH">PATCH</span>Shop API / Update cart</button>
+    <div class="sep"></div>
+    <button class="item danger" role="menuitem">Pause all mocks</button>
+  </div>
+
+  <div class="body">
+    <nav class="rail" aria-label="Sections">
+      <button class="drawer-toggle" id="drawerToggle" aria-label="Show collections" title="Show collections"><svg class="i" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+      <button aria-current="page" title="Collections"><svg class="i" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>Collections</button>
+      <button title="Environments"><svg class="i" viewBox="0 0 24 24"><path d="M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5a2 2 0 0 0 2 2h1"/><path d="M16 3h1a2 2 0 0 1 2 2v5a2 2 0 0 0 2 2 2 2 0 0 0-2 2v5a2 2 0 0 1-2 2h-1"/></svg>Envs</button>
+      <button title="Mocks (2 on)"><svg class="i" viewBox="0 0 24 24"><path d="M17 3l4 4-4 4"/><path d="M3 11V9a2 2 0 0 1 2-2h16"/><path d="M7 21l-4-4 4-4"/><path d="M21 13v2a2 2 0 0 1-2 2H3"/></svg>Mocks<span class="n">2</span></button>
+    </nav>
+
+    <aside class="side" aria-label="Collections">
+      <div class="side-head"><h2>Collections</h2><button class="icon-btn" aria-label="New collection" title="New collection"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button></div>
+      <div class="side-actions">
+        <div class="split">
+          <button class="btn"><svg class="i" viewBox="0 0 24 24"><rect x="8" y="3" width="8" height="4" rx="1"/><path d="M8 5H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/></svg>Paste cURL</button>
+          <button class="btn" aria-label="More import options" title="Import cURL from file…"><svg class="i" viewBox="0 0 24 24" style="width:12px"><path d="m6 9 6 6 6-6"/></svg></button>
+        </div>
+      </div>
+      <div class="tree" role="tree">
+        <button class="node col" role="treeitem" aria-expanded="true" style="--d:0"><span class="caret">▾</span><span class="name">Shop API</span></button>
+        <button class="node" role="treeitem" aria-expanded="true" style="--d:1"><span class="caret">▾</span><svg class="i folder" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><span class="name">Users</span></button>
+        <button class="node" role="treeitem" aria-selected="true" style="--d:2"><span class="m GET">GET</span><span class="name">List users</span><span class="badge-mock" title="Mock is on">MOCK</span></button>
+        <button class="node" role="treeitem" style="--d:2"><span class="m POST">POST</span><span class="name">Create user</span></button>
+        <button class="node" role="treeitem" style="--d:2"><span class="m DELETE">DELETE</span><span class="name">Delete user</span></button>
+        <button class="node" role="treeitem" aria-expanded="false" style="--d:1"><span class="caret">▸</span><svg class="i folder" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><span class="name">Orders</span></button>
+        <button class="node" role="treeitem" style="--d:1"><span class="m PATCH">PATCH</span><span class="name">Update cart</span><span class="badge-mock" title="Mock is on">MOCK</span></button>
+        <button class="node col" role="treeitem" aria-expanded="false" style="--d:0"><span class="caret">▸</span><span class="name">Auth</span></button>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="tabs-open" role="tablist" aria-label="Open requests">
+        <button class="otab" role="tab" aria-selected="true"><span class="m GET">GET</span><span class="name">List users</span><span class="badge-mock">MOCK</span><span class="x" aria-label="Close tab"><svg class="i" viewBox="0 0 24 24" style="width:12px"><path d="M6 6l12 12M18 6 6 18"/></svg></span></button>
+        <button class="otab" role="tab" aria-selected="false"><span class="m POST">POST</span><span class="name">Create user</span><span class="unsaved" title="Unsaved changes" aria-label="Unsaved changes"></span><span class="x" aria-label="Close tab"><svg class="i" viewBox="0 0 24 24" style="width:12px"><path d="M6 6l12 12M18 6 6 18"/></svg></span></button>
+        <button class="otab" role="tab" aria-selected="false"><span class="m PATCH">PATCH</span><span class="name">Update cart</span><span class="badge-mock">MOCK</span><span class="x" aria-label="Close tab"><svg class="i" viewBox="0 0 24 24" style="width:12px"><path d="M6 6l12 12M18 6 6 18"/></svg></span></button>
+        <button class="add-tab" aria-label="New request tab" title="New request">+</button>
+      </div>
+
+      <div class="empty-main" id="emptyMain">
+        <h3>Send your first request</h3>
+        <p>In the Network tab, right-click a request → Copy → Copy as cURL, then paste it here.</p>
+        <div class="actions"><button class="btn-primary">Paste cURL</button><button class="btn">Import from file…</button><button class="btn">New request</button></div>
+        <p style="font-size:12px">Shortcuts: <kbd>⌘K</kbd> search · <kbd>⌘↵</kbd> send · <kbd>⌘S</kbd> save</p>
+      </div>
+
+      <div class="work">
+      <section class="req" id="reqSection">
+        <div class="crumbs">Shop API <span>/</span> Users <span>/</span> <b>List users</b><span class="badge-mock"><svg class="i" viewBox="0 0 24 24"><path d="M17 3l4 4-4 4"/><path d="M3 11V9a2 2 0 0 1 2-2h16"/><path d="M7 21l-4-4 4-4"/><path d="M21 13v2a2 2 0 0 1-2 2H3"/></svg>MOCK ON</span></div>
+        <div class="urlbar">
+          <div class="urlgroup">
+            <button class="method" aria-label="Method GET">GET <svg class="i" viewBox="0 0 24 24" style="width:12px"><path d="m6 9 6 6 6-6"/></svg></button>
+            <div class="url mono" id="urlText"><span class="var" title="baseUrl = http://localhost:3000 (Local)">{{baseUrl}}</span>/api/users<span class="q">?page=2&amp;size=10</span></div>
+          </div>
+          <button class="send" id="sendBtn">Send <kbd>⌘↵</kbd></button>
+        </div>
+        <div class="var-warning" id="varWarning" hidden><svg class="i" viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg><span><b>{{baseUrl}}</b> is not defined in “Local”.</span> <button class="btn" style="height:24px">Add variable</button></div>
+        <div class="subtabs" role="tablist">
+          <button class="subtab" role="tab" aria-selected="true">Params <span class="count">2</span></button>
+          <button class="subtab" role="tab" aria-selected="false">Headers <span class="count">3</span></button>
+          <button class="subtab" role="tab" aria-selected="false">Body</button>
+        </div>
+        <table class="kv">
+          <thead><tr><th><span class="sr-only"></span></th><th>Key</th><th>Value</th></tr></thead>
+          <tbody>
+            <tr><td class="cb"><button class="cbx" role="checkbox" aria-checked="true" aria-label="Enabled"><span><svg class="i" viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"/></svg></span></button></td><td class="mono">page</td><td class="mono">2</td></tr>
+            <tr><td class="cb"><button class="cbx" role="checkbox" aria-checked="true" aria-label="Enabled"><span><svg class="i" viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"/></svg></span></button></td><td class="mono">size</td><td class="mono">10</td></tr>
+            <tr><td class="cb"><button class="cbx off" role="checkbox" aria-checked="false" aria-label="Enabled"><span></span></button></td><td class="placeholder">Key</td><td class="placeholder">Value</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="resp" id="respSection">
+        <div class="resp-head">
+          <div role="tablist" style="display:flex;gap:16px">
+            <button class="subtab" role="tab" data-pane="response" aria-selected="true">Response</button>
+            <button class="subtab" role="tab" data-pane="mock" aria-selected="false">Mock <span class="badge-mock">ON</span></button>
+          </div>
+          <div class="stats" id="stats"><span class="status ok">200 OK</span><span><b>124</b><span class="unit-time"> ms</span></span><span class="size"><b>1.4</b> KB</span></div>
+        </div>
+
+        <div id="respPane" style="display:flex;flex-direction:column;flex:1;min-height:0">
+          <div class="mock-banner" role="note"><b>Mock is on.</b> This is the real response; web pages currently receive the mock.<button class="btn" data-goto="mock">Edit mock</button></div>
+          <div class="resp-tools">
+            <div class="seg" role="group" aria-label="Format"><button aria-pressed="true">Pretty</button><button aria-pressed="false">Raw</button></div>
+            <div class="seg" role="group" aria-label="Section"><button aria-pressed="true">Body</button><button aria-pressed="false">Headers 6</button></div>
+            <button class="btn ml-auto"><svg class="i" viewBox="0 0 24 24"><path d="M17 3l4 4-4 4"/><path d="M3 11V9a2 2 0 0 1 2-2h16"/><path d="M7 21l-4-4 4-4"/><path d="M21 13v2a2 2 0 0 1-2 2H3"/></svg>Mock this response</button>
+          </div>
+<pre class="code"><span class="ln">1</span>{
+<span class="ln">2</span>  <span class="k">"users"</span>: [
+<span class="ln">3</span>    { <span class="k">"id"</span>: <span class="n">1</span>, <span class="k">"name"</span>: <span class="s">"Ann Tran"</span>, <span class="k">"active"</span>: <span class="l">true</span> },
+<span class="ln">4</span>    { <span class="k">"id"</span>: <span class="n">2</span>, <span class="k">"name"</span>: <span class="s">"Bao Le"</span>, <span class="k">"active"</span>: <span class="l">false</span> }
+<span class="ln">5</span>  ],
+<span class="ln">6</span>  <span class="k">"page"</span>: <span class="n">2</span>,
+<span class="ln">7</span>  <span class="k">"total"</span>: <span class="n">42</span>
+<span class="ln">8</span>}</pre>
+        </div>
+
+        <div id="sendingPane" style="display:none;flex:1;align-items:center;justify-content:center;gap:12px;color:var(--muted)"><span class="spinner" aria-hidden="true"></span>Waiting for response… <b style="color:var(--text)">1.8 s</b><button class="btn">Cancel</button></div>
+
+        <div id="errorPane" style="display:none">
+          <div class="state-box err" role="alert">
+            <h3>Could not get a response</h3>
+            <p>localhost:3000 refused the connection. Check that the server is running, or that the URL is right.</p>
+            <div style="display:flex;gap:8px"><button class="btn-primary">Retry</button><button class="btn">Open in a new tab</button></div>
+          </div>
+        </div>
+
+        <div class="mockpane" id="mockPane">
+          <div class="mockbar"><button class="switch" role="switch" aria-checked="true" aria-label="Mock on"></button><div><b>Mock is ON</b><div class="hint">Pages on localhost:3000 get this response instead of the real API.</div></div></div>
+          <div class="fields">
+            <label class="field">Status<span class="box mono">200</span></label>
+            <label class="field">Delay<span class="box mono">300 ms</span></label>
+            <label class="field" style="flex:1;min-width:180px">Content-Type<span class="box mono">application/json</span></label>
+          </div>
+          <div class="editor">
+<pre class="code" style="padding:0 16px"><span class="ln">1</span>{
+<span class="ln">2</span>  <span class="k">"users"</span>: [ { <span class="k">"id"</span>: <span class="n">99</span>, <span class="k">"name"</span>: <span class="s">"Mocked user"</span> } ],
+<span class="ln">3</span>  <span class="k">"total"</span>: <span class="n">1</span>
+<span class="ln">4</span>}</pre>
+          </div>
+        </div>
+      </section>
+      </div>
+    </main>
+  </div>
+</div>
+</div>
+
+<script>
+  const app = document.getElementById('app');
+  const frame = document.getElementById('frame');
+  const $ = id => document.getElementById(id);
+  const panes = { response: 'respPane', mock: 'mockPane', sending: 'sendingPane', error: 'errorPane' };
+
+  function setView(view) {
+    const pane = view === 'var' || view === 'menu' ? 'response' : view;
+    for (const [k, id] of Object.entries(panes)) $(id).style.display = k === pane ? (k === 'mock' || k === 'response' || k === 'sending' ? 'flex' : 'block') : 'none';
+    document.querySelectorAll('.resp-head .subtab').forEach(t => t.setAttribute('aria-selected', String(t.dataset.pane === (pane === 'mock' ? 'mock' : 'response'))));
+    $('stats').style.visibility = pane === 'response' || pane === 'var' ? 'visible' : 'hidden';
+    if (pane === 'error') { $('stats').style.visibility = 'visible'; $('stats').innerHTML = '<span class="status err">Network error</span>'; }
+    else $('stats').innerHTML = '<span class="status ok">200 OK</span><span><b>124</b><span class="unit-time"> ms</span></span><span class="size"><b>1.4</b> KB</span>';
+    const send = $('sendBtn');
+    send.className = view === 'sending' ? 'send busy' : 'send';
+    send.innerHTML = view === 'sending' ? '<span class="spinner" aria-hidden="true"></span>Cancel' : 'Send <kbd>⌘↵</kbd>';
+    $('varWarning').hidden = view !== 'var';
+    $('urlText').querySelector('.var').className = view === 'var' ? 'var missing' : 'var';
+    $('mocksMenu').style.display = view === 'menu' ? 'block' : 'none';
+    const empty = view === 'empty';
+    $('emptyMain').style.display = empty ? 'flex' : 'none';
+    $('reqSection').style.display = empty ? 'none' : '';
+    $('respSection').style.display = empty ? 'none' : '';
+    document.querySelector('.tabs-open').style.display = empty ? 'none' : '';
+  }
+
+  document.querySelectorAll('.picker button').forEach(btn => btn.addEventListener('click', () => {
+    const key = btn.dataset.set;
+    document.querySelectorAll(`.picker button[data-set="${key}"]`).forEach(b => b.setAttribute('aria-pressed', String(b === btn)));
+    if (key === 'view') setView(btn.dataset.value);
+    if (key === 'mode') app.dataset.mode = btn.dataset.value;
+    if (key === 'size') {
+      const [w, h] = btn.dataset.value.split('x');
+      frame.style.width = `${w}px`;
+      frame.style.height = `${h}px`;
+      app.classList.remove('drawer-open');
+    }
+  }));
+  $('drawerToggle').addEventListener('click', () => app.classList.toggle('drawer-open'));
+  $('mockChip').addEventListener('click', () => { const m = $('mocksMenu'); m.style.display = m.style.display === 'block' ? 'none' : 'block'; });
+  document.querySelector('[data-goto="mock"]').addEventListener('click', () => document.querySelector('[data-set="view"][data-value="mock"]').click());
+</script>
+</body>
+</html>
