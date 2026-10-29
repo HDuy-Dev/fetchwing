@@ -487,8 +487,30 @@
   renderJson(sample, document.getElementById('jsonView'));
   const mockSample = { users: Array.from({ length: 12 }, (_, i) => ({ id: 100 + i, name: `Mocked user ${i + 1}`, active: true, roles: ['viewer'] })), page: 1, total: 12 };
   renderJson(mockSample, document.getElementById('mockJson'));
-  const foldAllIn = view => [...view.querySelectorAll('.jrow')].filter(r => r.__toggle && r.__depth === 1).forEach(r => r.__toggle(true));
-  document.getElementById('mockFoldAll').addEventListener('click', () => foldAllIn(document.getElementById('mockJson')));
+  // Collapse all <-> Expand all, kept in step with the per-block arrows.
+  const ICON_COLLAPSE = '<svg class="i" viewBox="0 0 24 24"><path d="m7 15 5-5 5 5"/><path d="M7 20h10M7 4h10"/></svg>';
+  const ICON_EXPAND = '<svg class="i" viewBox="0 0 24 24"><path d="m7 9 5 5 5-5"/><path d="M7 20h10M7 4h10"/></svg>';
+  function wireFoldToggle(view, btn) {
+    const blocks = () => [...view.querySelectorAll('.jrow')].filter(r => r.__toggle);
+    const sync = () => {
+      const collapsed = blocks().some(r => r.__collapsed && !r.hidden);
+      btn.innerHTML = collapsed ? ICON_EXPAND : ICON_COLLAPSE;
+      btn.setAttribute('aria-pressed', String(collapsed));
+      btn.setAttribute('aria-label', collapsed ? 'Expand all' : 'Collapse all');
+      btn.title = collapsed ? 'Expand all' : 'Collapse all';
+    };
+    btn.addEventListener('click', () => {
+      if (btn.getAttribute('aria-pressed') === 'true') {
+        blocks().forEach(r => { if (r.__collapsed) r.__toggle(false); }); // outer blocks first, so inner ones open too
+      } else {
+        blocks().filter(r => r.__depth === 1).forEach(r => r.__toggle(true));
+      }
+      sync();
+    });
+    view.addEventListener('click', e => { if (e.target.closest('.fold, .more')) setTimeout(sync); });
+    sync();
+  }
+  wireFoldToggle(document.getElementById('mockJson'), document.getElementById('mockFoldAll'));
   document.getElementById('mockEdit').addEventListener('click', e => {
     const editing = e.currentTarget.getAttribute('aria-pressed') !== 'true';
     e.currentTarget.setAttribute('aria-pressed', String(editing));
@@ -498,10 +520,7 @@
     document.getElementById('mockJson').hidden = editing;
     if (editing) text.focus();
   });
-  document.getElementById('foldAll').addEventListener('click', () => {
-    // Collapse every block one level below the root, like an outline view.
-    foldAllIn(document.getElementById('jsonView'));
-  });
+  wireFoldToggle(document.getElementById('jsonView'), document.getElementById('foldAll'));
 
 
   document.querySelectorAll('.picker button').forEach(btn => btn.addEventListener('click', () => {
