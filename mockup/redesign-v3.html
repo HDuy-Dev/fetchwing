@@ -195,6 +195,12 @@
   .menu .danger { color: var(--mock); font-weight: 600; }
   .drawer-toggle { display: none; }
   [hidden] { display: none !important; }
+  /* thin scrollbars everywhere in the app */
+  .app * { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--muted) 45%, transparent) transparent; }
+  .app *::-webkit-scrollbar { width: 6px; height: 6px; }
+  .app *::-webkit-scrollbar-track { background: transparent; }
+  .app *::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--muted) 40%, transparent); border-radius: 3px; }
+  .app *:hover::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--muted) 65%, transparent); }
   .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 
   /* ---------- narrow (right-docked DevTools) ---------- */
