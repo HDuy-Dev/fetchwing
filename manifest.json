@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "Fetchwing",
+  "version": "0.1.0",
+  "description": "A lightweight API client in DevTools: paste cURL, send requests, organise collections and mock responses for web pages.",
+  "devtools_page": "src/devtools.html",
+  "background": {
+    "service_worker": "src/background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Fetchwing"
+  },
+  "permissions": ["storage", "scripting", "declarativeNetRequestWithHostAccess", "clipboardRead"],
+  "optional_host_permissions": ["http://*/*", "https://*/*"]
+}

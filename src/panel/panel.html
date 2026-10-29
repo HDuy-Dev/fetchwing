@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Fetchwing</title>
+<link rel="stylesheet" href="panel.css">
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <span class="brand">Fetchwing</span>
+    <label class="env">
+      <span class="sr-only">Environment</span>
+      <select id="envSelect" title="Active environment"></select>
+    </label>
+    <button class="ghost" id="envEdit" type="button" title="Edit environments">Environments</button>
+    <span class="spacer"></span>
+    <button class="mocks-on" id="mocksOn" type="button" hidden></button>
+    <button class="ghost" id="settingsBtn" type="button" title="Settings">Settings</button>
+  </header>
+
+  <div class="main">
+    <aside class="sidebar">
+      <div class="sidebar-actions">
+        <button class="primary" id="pasteCurl" type="button" title="Create a request from a cURL command in the clipboard">Paste cURL</button>
+        <button id="newMenuBtn" type="button" aria-haspopup="menu">New ▾</button>
+      </div>
+      <div class="tree" id="tree" role="tree" aria-label="Collections"></div>
+    </aside>
+
+    <section class="workspace" id="workspace">
+      <div class="empty" id="emptyState">Paste a cURL command or create a request to get started.</div>
+      <div class="editor" id="editor" hidden></div>
+      <div class="bottom" id="bottom" hidden>
+        <div class="tabs" role="tablist">
+          <button role="tab" class="tab" data-pane="response" aria-selected="true">Response</button>
+          <button role="tab" class="tab" data-pane="mock" aria-selected="false">Mock <span class="mock-state" id="mockTabState"></span></button>
+        </div>
+        <div class="pane" id="responsePane"></div>
+        <div class="pane" id="mockPane" hidden></div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<div class="menu" id="menu" role="menu" hidden></div>
+<div class="dialog-backdrop" id="dialog" hidden></div>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+<script type="module" src="panel.js"></script>
+</body>
+</html>
