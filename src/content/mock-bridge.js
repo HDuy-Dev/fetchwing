@@ -4,8 +4,12 @@
   if (window.__fetchwingBridge) return;
   window.__fetchwingBridge = true;
 
-  let latest = [];
-  const post = () => window.postMessage({ source: 'fetchwing-bridge', type: 'mocks', mocks: latest }, '*');
+  // null until storage has answered: posting an empty list early would tell
+  // the page "no mocks" and let its first requests through.
+  let latest = null;
+  const post = () => {
+    if (latest) window.postMessage({ source: 'fetchwing-bridge', type: 'mocks', mocks: latest }, '*');
+  };
 
   chrome.storage.local.get('activeMocks').then(({ activeMocks }) => {
     latest = activeMocks || [];
