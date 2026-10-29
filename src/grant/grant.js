@@ -1,3 +1,8 @@
+// Same theme as the panel (shared extension origin), else the system theme.
+let mode = null;
+try { mode = JSON.parse(localStorage.getItem('fw.mode')); } catch {}
+document.documentElement.dataset.mode = mode ?? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+
 const origin = new URLSearchParams(location.search).get('origin') || '';
 document.getElementById('origin').textContent = origin;
 document.getElementById('allow').addEventListener('click', async () => {
