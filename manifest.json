@@ -11,6 +11,21 @@
   "action": {
     "default_title": "Fetchwing"
   },
-  "permissions": ["storage", "scripting", "declarativeNetRequestWithHostAccess", "clipboardRead"],
-  "optional_host_permissions": ["http://*/*", "https://*/*"]
+  "permissions": [
+    "storage",
+    "scripting",
+    "declarativeNetRequestWithHostAccess",
+    "clipboardRead",
+    "identity",
+    "alarms"
+  ],
+  "host_permissions": [
+    "https://www.googleapis.com/*",
+    "https://openidconnect.googleapis.com/*",
+    "https://oauth2.googleapis.com/*"
+  ],
+  "optional_host_permissions": [
+    "http://*/*",
+    "https://*/*"
+  ]
 }

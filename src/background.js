@@ -5,6 +5,10 @@ import { applyMutation, emptyWorkspace } from './lib/model.js';
 import { envVars, resolveRequest } from './lib/vars.js';
 import { deriveActiveMocks, findDuplicate } from './lib/mocks.js';
 import { executeSend } from './lib/send.js';
+import { GOOGLE_CLIENT_ID } from './config.js';
+import { createAuth } from './lib/google-auth.js';
+import { createDriveStore } from './lib/drive-store.js';
+import { createSyncer } from './lib/sync.js';
 
 const SCRIPT_IDS = ['fw-bridge', 'fw-main'];
 let nextRuleId = 1000;
@@ -33,6 +37,48 @@ async function publishMocks(ws) {
   await chrome.action.setBadgeText({ text: activeMocks.length ? String(activeMocks.length) : '' });
   await chrome.action.setBadgeBackgroundColor({ color: '#d9480f' });
 }
+
+// ---------- Drive sync ----------
+
+const SYNC_ALARM = 'fw-sync';
+const SYNC_DELAY_MS = 3000;
+const syncEnabled = Boolean(GOOGLE_CLIENT_ID);
+
+const auth = createAuth({
+  identity: chrome.identity,
+  session: chrome.storage.session,
+  local: chrome.storage.local,
+  fetchFn: (url, init) => fetch(url, init),
+  clientId: GOOGLE_CLIENT_ID,
+  now: () => Date.now(),
+});
+
+const syncer = createSyncer({
+  getWorkspace: () => readWorkspace(),
+  updateWorkspace: fn => enqueue(async () => {
+    const next = fn(await loadWorkspace());
+    await chrome.storage.local.set({ workspace: next });
+    await publishMocks(next);
+    return next;
+  }),
+  setStatus: async patch => {
+    const { syncStatus } = await chrome.storage.local.get('syncStatus');
+    await chrome.storage.local.set({ syncStatus: { state: 'off', email: null, error: null, lastSyncAt: null, ...syncStatus, ...patch } });
+  },
+  auth,
+  store: createDriveStore({ fetchFn: (url, init) => fetch(url, init), getToken: () => auth.getToken(), onUnauthorized: () => auth.invalidate() }),
+  local: chrome.storage.local,
+  now: () => Date.now(),
+});
+
+let syncTimer = null;
+function scheduleSync() {
+  if (!syncEnabled) return;
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(() => syncer.round(), SYNC_DELAY_MS);
+}
+
+const NOT_SET_UP = { ok: false, error: 'Sync is not set up in this build' };
 
 async function getMockSites() {
   const { mockSites } = await chrome.storage.local.get('mockSites');
@@ -91,6 +137,7 @@ async function handle(msg) {
       });
       if (error) return { ok: false, error };
       await publishMocks(ws);
+      scheduleSync();
       return { ok: true };
     }
     case 'send': {
@@ -152,6 +199,16 @@ async function handle(msg) {
     case 'removeAccess':
       await chrome.permissions.remove({ origins: [msg.pattern] }).catch(() => {});
       return { ok: true };
+    case 'syncSignIn':
+      return syncEnabled ? syncer.signIn({ forceConsent: Boolean(msg.forceConsent) }) : NOT_SET_UP;
+    case 'syncConfirm':
+      return syncEnabled ? syncer.confirmAccount(msg.choice) : NOT_SET_UP;
+    case 'syncSignOut':
+      return syncEnabled ? syncer.signOut() : NOT_SET_UP;
+    case 'syncNow':
+      if (!syncEnabled) return NOT_SET_UP;
+      await syncer.round();
+      return { ok: true };
     default:
       return { ok: false, error: 'unknown_message' };
   }
@@ -166,6 +223,11 @@ async function startup() {
   const ws = await readWorkspace();
   await publishMocks(ws);
   await syncContentScripts(await getMockSites());
+  if (syncEnabled) {
+    await chrome.alarms.create(SYNC_ALARM, { periodInMinutes: 5 });
+    syncer.round();
+  }
 }
+chrome.alarms.onAlarm.addListener(alarm => { if (alarm.name === SYNC_ALARM && syncEnabled) syncer.round(); });
 chrome.runtime.onInstalled.addListener(startup);
 chrome.runtime.onStartup.addListener(startup);
