@@ -94,3 +94,19 @@ test('reports time, size and truncation', async () => {
   assert.equal(res.bodyTruncated, true);
   assert.equal(res.bodyText.length, MAX_DISPLAY_BYTES);
 });
+
+test('abort removes the cookie rule and passes the signal', async () => {
+  const dnr = fakeDnr();
+  const ctrl = new AbortController();
+  let seenSignal;
+  const fetchFn = (url, init) => {
+    seenSignal = init.signal;
+    return new Promise((_, reject) => init.signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError'))));
+  };
+  const p = executeSend({ resolved: resolved(), fetchFn, dnr, now: () => 0, ruleId: 5, signal: ctrl.signal });
+  await new Promise(r => setImmediate(r));
+  ctrl.abort();
+  await assert.rejects(p, err => err.name === 'AbortError');
+  assert.equal(seenSignal, ctrl.signal);
+  assert.deepEqual(dnr.log.at(-1), ['remove', [5]]);
+});

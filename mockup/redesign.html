@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fetchwing Redesign</title>
+<style>
+  /* ---------- palettes (picked from the switcher) ---------- */
+  :root, [data-palette="teal"] {
+    --accent: #2dd4bf; --accent-strong: #14b8a6; --accent-ink: #042f2e; --accent-soft: rgba(45,212,191,.14);
+  }
+  [data-palette="violet"] {
+    --accent: #a78bfa; --accent-strong: #8b5cf6; --accent-ink: #1e1036; --accent-soft: rgba(167,139,250,.16);
+  }
+  [data-palette="emerald"] {
+    --accent: #4ade80; --accent-strong: #22c55e; --accent-ink: #052e16; --accent-soft: rgba(74,222,128,.14);
+  }
+  /* ---------- dark (default) ---------- */
+  [data-mode="dark"] {
+    --bg: #0f1520; --surface: #151d2b; --surface-2: #1b2536; --hover: #222e42; --select: #26344b;
+    --border: #2a3648; --text: #e6ebf2; --muted: #93a0b4; --faint: #64728a;
+    --get: #4ade80; --post: #fbbf24; --put: #60a5fa; --patch: #c084fc; --delete: #f87171; --other: #94a3b8;
+    --mock: #fb7185; --ok: #4ade80; --warn: #fbbf24; --err: #f87171;
+    --j-key: #93c5fd; --j-str: #86efac; --j-num: #fcd34d; --j-lit: #f9a8d4;
+    --shadow: 0 10px 30px rgba(0,0,0,.45);
+  }
+  [data-mode="light"] {
+    --bg: #f5f7fb; --surface: #ffffff; --surface-2: #f0f3f8; --hover: #e9eef6; --select: #e2e9f5;
+    --border: #d8dfea; --text: #172033; --muted: #556275; --faint: #8592a6;
+    --get: #15803d; --post: #b45309; --put: #1d4ed8; --patch: #7e22ce; --delete: #b91c1c; --other: #475569;
+    --mock: #e11d48; --ok: #15803d; --warn: #b45309; --err: #b91c1c;
+    --j-key: #1d4ed8; --j-str: #15803d; --j-num: #b45309; --j-lit: #be185d;
+    --shadow: 0 10px 30px rgba(15,23,42,.14);
+  }
+  [data-mode="light"][data-palette="teal"] { --accent: #0d9488; --accent-strong: #0f766e; --accent-ink: #ffffff; --accent-soft: rgba(13,148,136,.12); }
+  [data-mode="light"][data-palette="violet"] { --accent: #7c3aed; --accent-strong: #6d28d9; --accent-ink: #ffffff; --accent-soft: rgba(124,58,237,.10); }
+  [data-mode="light"][data-palette="emerald"] { --accent: #16a34a; --accent-strong: #15803d; --accent-ink: #ffffff; --accent-soft: rgba(22,163,74,.10); }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; background: #0b0f17; color: #e6ebf2; font: 13px/1.45 Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 20px 16px; }
+  .picker { max-width: 1200px; margin: 0 auto 14px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .picker .label { color: #93a0b4; margin-right: 4px; }
+  .picker button { font: inherit; display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px 6px 8px; border-radius: 18px; border: 1px solid #2a3648; background: #151d2b; color: #e6ebf2; cursor: pointer; }
+  .picker button[aria-pressed="true"] { border-color: #e6ebf2; font-weight: 600; }
+  .chip { width: 18px; height: 18px; border-radius: 50%; }
+  .note { max-width: 1200px; margin: 0 auto 10px; color: #93a0b4; font-size: 12px; }
+
+  /* ---------- app frame ---------- */
+  .app { max-width: 1200px; height: 720px; margin: 0 auto; display: flex; flex-direction: column; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; box-shadow: var(--shadow); }
+  svg.i { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  .mono { font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+
+  .top { display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 12px; background: var(--surface); border-bottom: 1px solid var(--border); }
+  .logo { display: flex; align-items: center; gap: 8px; font-weight: 700; letter-spacing: .2px; }
+  .logo .mark { width: 22px; height: 22px; border-radius: 6px; background: linear-gradient(135deg, var(--accent), var(--accent-strong)); display: grid; place-items: center; color: var(--accent-ink); }
+  .logo .mark svg { width: 14px; height: 14px; stroke-width: 2.2; }
+  .search { flex: 1; max-width: 420px; margin: 0 auto; display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 10px; border-radius: 8px; background: var(--surface-2); border: 1px solid var(--border); color: var(--faint); }
+  .search kbd { margin-left: auto; font: 11px/1 inherit; padding: 2px 5px; border: 1px solid var(--border); border-radius: 4px; color: var(--muted); }
+  .pill-btn { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); }
+  .pill-btn:hover { background: var(--hover); }
+  .mocks-on { border-color: color-mix(in srgb, var(--mock) 55%, transparent); color: var(--mock); background: color-mix(in srgb, var(--mock) 10%, transparent); font-weight: 600; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+  .icon-btn { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 8px; border: 0; background: transparent; color: var(--muted); }
+  .icon-btn:hover { background: var(--hover); color: var(--text); }
+
+  .body { flex: 1; display: flex; min-height: 0; }
+  .rail { width: 52px; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 0; }
+  .rail button { width: 40px; padding: 6px 0 4px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 9.5px; }
+  .rail button:hover { background: var(--hover); color: var(--text); }
+  .rail button.on { background: var(--accent-soft); color: var(--accent); }
+
+  .side { width: 250px; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; }
+  .side-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px 6px; }
+  .side-head h2 { margin: 0; font-size: 12px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); }
+  .side-actions { display: flex; gap: 6px; padding: 0 12px 10px; }
+  .btn-accent { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 30px; padding: 0 12px; border-radius: 8px; border: 0; background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+  .btn-accent:hover { background: var(--accent-strong); }
+  .btn-ghost { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--border); background: transparent; }
+  .btn-ghost:hover { background: var(--hover); }
+  .tree { flex: 1; overflow: auto; padding: 2px 6px 10px; }
+  .node { display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 8px 0 calc(8px + var(--d, 0) * 14px); border-radius: 6px; cursor: pointer; white-space: nowrap; }
+  .node:hover { background: var(--hover); }
+  .node.sel { background: var(--select); }
+  .node .caret { color: var(--faint); width: 12px; }
+  .node .name { overflow: hidden; text-overflow: ellipsis; flex: 1; }
+  .node.col .name { font-weight: 600; }
+  .m { font: 600 10px/1 "JetBrains Mono", ui-monospace, Menlo, monospace; width: 36px; flex-shrink: 0; letter-spacing: .3px; }
+  .m.GET { color: var(--get); } .m.POST { color: var(--post); } .m.PUT { color: var(--put); } .m.PATCH { color: var(--patch); } .m.DEL { color: var(--delete); }
+  .mockdot { color: var(--mock); }
+  .folder { color: var(--faint); }
+
+  .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .tabs-open { display: flex; align-items: flex-end; gap: 2px; height: 38px; padding: 0 8px; background: var(--surface); border-bottom: 1px solid var(--border); }
+  .otab { display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px; border-radius: 8px 8px 0 0; color: var(--muted); max-width: 200px; }
+  .otab .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .otab.on { background: var(--bg); color: var(--text); box-shadow: inset 0 2px 0 var(--accent); }
+  .otab .x { color: var(--faint); border: 0; background: transparent; padding: 0; display: grid; }
+  .add-tab { border: 0; background: transparent; color: var(--muted); height: 32px; width: 30px; border-radius: 8px; }
+
+  .req { padding: 12px 14px 0; display: flex; flex-direction: column; gap: 10px; }
+  .crumbs { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
+  .crumbs b { color: var(--text); font-weight: 600; }
+  .urlbar { display: flex; gap: 8px; }
+  .urlgroup { flex: 1; display: flex; align-items: stretch; height: 38px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); overflow: hidden; }
+  .urlgroup:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .method { display: flex; align-items: center; gap: 6px; padding: 0 12px; border-right: 1px solid var(--border); font: 700 12px/1 "JetBrains Mono", ui-monospace, monospace; color: var(--get); background: var(--surface-2); }
+  .url { flex: 1; display: flex; align-items: center; padding: 0 12px; font-size: 12.5px; white-space: nowrap; overflow: hidden; }
+  .url .var { color: var(--accent); background: var(--accent-soft); border-radius: 4px; padding: 1px 3px; }
+  .url .q { color: var(--muted); }
+  .send { height: 38px; padding: 0 20px; border-radius: 9px; border: 0; background: var(--accent); color: var(--accent-ink); font-weight: 700; display: inline-flex; align-items: center; gap: 8px; }
+  .send:hover { background: var(--accent-strong); }
+  .send kbd { font: 10px/1 inherit; opacity: .7; }
+
+  .subtabs { display: flex; gap: 18px; border-bottom: 1px solid var(--border); }
+  .subtab { border: 0; background: transparent; padding: 8px 0; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px; display: inline-flex; align-items: center; gap: 6px; }
+  .subtab.on { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
+  .count { font-size: 10.5px; color: var(--accent); background: var(--accent-soft); border-radius: 8px; padding: 0 6px; }
+
+  table.kv { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  table.kv th { text-align: left; font-weight: 500; color: var(--faint); font-size: 11.5px; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+  table.kv td { padding: 0 8px; height: 32px; border-bottom: 1px solid var(--border); }
+  table.kv td.cb { width: 28px; }
+  table.kv td.placeholder { color: var(--faint); }
+  .cbx { width: 14px; height: 14px; border-radius: 4px; border: 1.5px solid var(--accent); background: var(--accent); display: grid; place-items: center; color: var(--accent-ink); }
+  .cbx svg { width: 10px; height: 10px; stroke-width: 3; }
+  .cbx.off { background: transparent; border-color: var(--faint); }
+
+  .resp { flex: 1; display: flex; flex-direction: column; min-height: 0; margin-top: 10px; border-top: 1px solid var(--border); background: var(--surface); }
+  .resp-head { display: flex; align-items: center; gap: 18px; padding: 0 14px; border-bottom: 1px solid var(--border); }
+  .resp-head .subtab { padding: 10px 0; }
+  .stats { margin-left: auto; display: flex; align-items: center; gap: 14px; font-size: 12px; color: var(--muted); }
+  .status { color: var(--ok); font-weight: 700; }
+  .stats b { color: var(--text); font-weight: 600; }
+  .resp-tools { display: flex; align-items: center; gap: 8px; padding: 8px 14px; }
+  .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 7px; overflow: hidden; }
+  .seg button { border: 0; background: transparent; padding: 4px 10px; color: var(--muted); font-size: 12px; }
+  .seg button.on { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+  .mock-this { margin-left: auto; }
+  pre.code { margin: 0; flex: 1; overflow: auto; padding: 4px 14px 14px; font: 12.5px/1.6 "JetBrains Mono", ui-monospace, Menlo, monospace; counter-reset: ln; }
+  pre.code span.ln { display: inline-block; width: 26px; color: var(--faint); user-select: none; }
+  .k { color: var(--j-key); } .s { color: var(--j-str); } .n { color: var(--j-num); } .l { color: var(--j-lit); }
+
+  /* mock pane */
+  .mockpane { flex: 1; overflow: auto; padding: 12px 14px; display: none; flex-direction: column; gap: 12px; }
+  .mockbar { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 9px; border: 1px solid color-mix(in srgb, var(--mock) 45%, transparent); background: color-mix(in srgb, var(--mock) 8%, transparent); }
+  .switch { width: 34px; height: 20px; border-radius: 10px; background: var(--mock); position: relative; flex-shrink: 0; }
+  .switch::after { content: ""; position: absolute; top: 3px; left: 17px; width: 14px; height: 14px; border-radius: 50%; background: #fff; }
+  .mockbar b { color: var(--mock); }
+  .mockbar .hint { color: var(--muted); font-size: 12px; }
+  .fields { display: flex; gap: 12px; }
+  .field { display: flex; flex-direction: column; gap: 4px; font-size: 11.5px; color: var(--faint); }
+  .field .box { height: 32px; min-width: 110px; display: flex; align-items: center; padding: 0 10px; border: 1px solid var(--border); border-radius: 7px; background: var(--bg); color: var(--text); font-size: 12.5px; }
+  .editor { border: 1px solid var(--border); border-radius: 9px; background: var(--bg); padding: 10px 0; }
+</style>
+</head>
+<body>
+<div class="picker" role="group" aria-label="Palette">
+  <span class="label">Màu chủ đạo:</span>
+  <button data-set="palette" data-value="teal" aria-pressed="true"><span class="chip" style="background:linear-gradient(135deg,#2dd4bf,#14b8a6)"></span>A · Teal</button>
+  <button data-set="palette" data-value="violet" aria-pressed="false"><span class="chip" style="background:linear-gradient(135deg,#a78bfa,#8b5cf6)"></span>B · Violet</button>
+  <button data-set="palette" data-value="emerald" aria-pressed="false"><span class="chip" style="background:linear-gradient(135deg,#4ade80,#22c55e)"></span>C · Emerald</button>
+  <span class="label" style="margin-left:16px">Chế độ:</span>
+  <button data-set="mode" data-value="dark" aria-pressed="true">Dark</button>
+  <button data-set="mode" data-value="light" aria-pressed="false">Light</button>
+  <span class="label" style="margin-left:16px">Màn hình:</span>
+  <button data-set="view" data-value="response" aria-pressed="true">Response</button>
+  <button data-set="view" data-value="mock" aria-pressed="false">Mock</button>
+</div>
+<p class="note">Mockup tĩnh trong khung 1200×720 (cỡ DevTools khi mở rộng). Dark/Light tự theo theme của DevTools trong bản thật.</p>
+
+<div class="app" id="app" data-palette="teal" data-mode="dark">
+  <!-- top bar -->
+  <header class="top">
+    <div class="logo">
+      <span class="mark"><svg class="i" viewBox="0 0 24 24"><path d="M4 15c4-1 7-4 9-9 1 4 0 8-3 11"/><path d="M10 17c3 0 6-1 10-4"/></svg></span>
+      Fetchwing
+    </div>
+    <div class="search"><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>Search requests<kbd>⌘K</kbd></div>
+    <button class="pill-btn mocks-on"><span class="dot"></span>2 mocks on</button>
+    <button class="pill-btn"><svg class="i" viewBox="0 0 24 24"><path d="M12 3v18M3 12h18" opacity=".0"/><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>Local<svg class="i" viewBox="0 0 24 24" style="width:12px"><path d="m6 9 6 6 6-6"/></svg></button>
+    <button class="icon-btn" aria-label="Settings"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg></button>
+  </header>
+
+  <div class="body">
+    <!-- icon rail -->
+    <nav class="rail" aria-label="Sections">
+      <button class="on"><svg class="i" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg>Collections</button>
+      <button><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18"/></svg>Envs</button>
+      <button><svg class="i" viewBox="0 0 24 24"><path d="M12 3 4 7v6c0 4 3.5 7 8 8 4.5-1 8-4 8-8V7z"/></svg>Mocks</button>
+    </nav>
+
+    <!-- collections -->
+    <aside class="side">
+      <div class="side-head"><h2>Collections</h2><button class="icon-btn" aria-label="New"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button></div>
+      <div class="side-actions">
+        <button class="btn-accent" style="flex:1"><svg class="i" viewBox="0 0 24 24"><rect x="8" y="3" width="8" height="4" rx="1"/><path d="M8 5H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/></svg>Paste cURL</button>
+        <button class="btn-ghost">Import</button>
+      </div>
+      <div class="tree">
+        <div class="node col" style="--d:0"><span class="caret">▾</span><span class="name">Shop API</span></div>
+        <div class="node" style="--d:1"><span class="caret">▾</span><svg class="i folder" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><span class="name">Users</span></div>
+        <div class="node sel" style="--d:2"><span class="m GET">GET</span><span class="name">List users</span><span class="mockdot">●</span></div>
+        <div class="node" style="--d:2"><span class="m POST">POST</span><span class="name">Create user</span></div>
+        <div class="node" style="--d:2"><span class="m DEL">DEL</span><span class="name">Delete user</span></div>
+        <div class="node" style="--d:1"><span class="caret">▸</span><svg class="i folder" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><span class="name">Orders</span></div>
+        <div class="node" style="--d:1"><span class="m PATCH">PATCH</span><span class="name">Update cart</span><span class="mockdot">●</span></div>
+        <div class="node col" style="--d:0"><span class="caret">▸</span><span class="name">Auth</span></div>
+      </div>
+    </aside>
+
+    <!-- main -->
+    <main class="main">
+      <div class="tabs-open">
+        <div class="otab on"><span class="m GET" style="width:auto">GET</span><span class="name">List users</span><button class="x" aria-label="Close"><svg class="i" viewBox="0 0 24 24" style="width:12px"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+        <div class="otab"><span class="m POST" style="width:auto">POST</span><span class="name">Create user</span></div>
+        <div class="otab"><span class="m PATCH" style="width:auto">PATCH</span><span class="name">Update cart</span></div>
+        <button class="add-tab" aria-label="New tab">+</button>
+      </div>
+
+      <section class="req">
+        <div class="crumbs">Shop API <span>/</span> Users <span>/</span> <b>List users</b></div>
+        <div class="urlbar">
+          <div class="urlgroup">
+            <div class="method">GET <svg class="i" viewBox="0 0 24 24" style="width:12px"><path d="m6 9 6 6 6-6"/></svg></div>
+            <div class="url mono"><span class="var">{{baseUrl}}</span>/api/users<span class="q">?page=2&amp;size=10</span></div>
+          </div>
+          <button class="send">Send <kbd>⌘↵</kbd></button>
+        </div>
+        <div class="subtabs">
+          <button class="subtab on">Params <span class="count">2</span></button>
+          <button class="subtab">Headers <span class="count">3</span></button>
+          <button class="subtab">Body</button>
+        </div>
+        <table class="kv">
+          <thead><tr><th></th><th>Key</th><th>Value</th></tr></thead>
+          <tbody>
+            <tr><td class="cb"><span class="cbx"><svg class="i" viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"/></svg></span></td><td class="mono">page</td><td class="mono">2</td></tr>
+            <tr><td class="cb"><span class="cbx"><svg class="i" viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"/></svg></span></td><td class="mono">size</td><td class="mono">10</td></tr>
+            <tr><td class="cb"><span class="cbx off"></span></td><td class="placeholder">Key</td><td class="placeholder">Value</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="resp">
+        <div class="resp-head">
+          <button class="subtab on" data-pane="response">Response</button>
+          <button class="subtab" data-pane="mock">Mock <span class="mockdot" style="font-size:10px">● ON</span></button>
+          <div class="stats"><span class="status">200 OK</span><span><b>124</b> ms</span><span><b>1.4</b> KB</span></div>
+        </div>
+        <div id="respPane" style="display:flex;flex-direction:column;flex:1;min-height:0">
+          <div class="resp-tools">
+            <div class="seg"><button class="on">Pretty</button><button>Raw</button></div>
+            <div class="seg"><button class="on">Body</button><button>Headers 6</button></div>
+            <button class="btn-ghost mock-this"><svg class="i" viewBox="0 0 24 24"><path d="M12 3 4 7v6c0 4 3.5 7 8 8 4.5-1 8-4 8-8V7z"/></svg>Mock this response</button>
+          </div>
+<pre class="code"><span class="ln">1</span>{
+<span class="ln">2</span>  <span class="k">"users"</span>: [
+<span class="ln">3</span>    { <span class="k">"id"</span>: <span class="n">1</span>, <span class="k">"name"</span>: <span class="s">"Ann Tran"</span>, <span class="k">"active"</span>: <span class="l">true</span> },
+<span class="ln">4</span>    { <span class="k">"id"</span>: <span class="n">2</span>, <span class="k">"name"</span>: <span class="s">"Bao Le"</span>, <span class="k">"active"</span>: <span class="l">false</span> }
+<span class="ln">5</span>  ],
+<span class="ln">6</span>  <span class="k">"page"</span>: <span class="n">2</span>,
+<span class="ln">7</span>  <span class="k">"total"</span>: <span class="n">42</span>
+<span class="ln">8</span>}</pre>
+        </div>
+        <div class="mockpane" id="mockPane">
+          <div class="mockbar"><span class="switch" aria-hidden="true"></span><div><b>Mock is ON</b><div class="hint">Pages on localhost:3000 get this response instead of the real API.</div></div></div>
+          <div class="fields">
+            <label class="field">Status<span class="box mono">200</span></label>
+            <label class="field">Delay<span class="box mono">300 ms</span></label>
+            <label class="field" style="flex:1">Content-Type<span class="box mono">application/json</span></label>
+          </div>
+          <div class="editor">
+<pre class="code" style="padding:0 14px"><span class="ln">1</span>{
+<span class="ln">2</span>  <span class="k">"users"</span>: [ { <span class="k">"id"</span>: <span class="n">99</span>, <span class="k">"name"</span>: <span class="s">"Mocked user"</span> } ],
+<span class="ln">3</span>  <span class="k">"total"</span>: <span class="n">1</span>
+<span class="ln">4</span>}</pre>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<script>
+  const app = document.getElementById('app');
+  document.querySelectorAll('.picker button').forEach(btn => btn.addEventListener('click', () => {
+    const key = btn.dataset.set;
+    document.querySelectorAll(`.picker button[data-set="${key}"]`).forEach(b => b.setAttribute('aria-pressed', String(b === btn)));
+    if (key === 'view') {
+      const mock = btn.dataset.value === 'mock';
+      document.getElementById('respPane').style.display = mock ? 'none' : 'flex';
+      document.getElementById('mockPane').style.display = mock ? 'flex' : 'none';
+      document.querySelectorAll('.resp-head .subtab').forEach(t => t.classList.toggle('on', t.dataset.pane === btn.dataset.value));
+      document.querySelector('.stats').style.visibility = mock ? 'hidden' : 'visible';
+    } else {
+      app.dataset[key] = btn.dataset.value;
+    }
+  }));
+</script>
+</body>
+</html>

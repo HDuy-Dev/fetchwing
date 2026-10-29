@@ -1,12 +1,13 @@
 // Collections tree: select, expand, inline rename, context menu, drag to move.
 
 import { children } from '../lib/model.js';
-import { el, showMenu } from './ui.js';
+import { el, icon, showMenu } from './ui.js';
 
-// handlers: { onSelect(id), onRename(id, name), onMove(id, parentId, order),
+// handlers: { onSelect(id), onOpen(id), onRename(id, name), onMove(id, parentId, order),
 //             onNew(type, parentId), onDelete(id), isExpanded(id), toggle(id) }
 export function renderTree(container, ws, selectedId, handlers) {
   container.textContent = '';
+  container.setAttribute('role', 'tree');
   let dragId = null;
 
   const addNodes = (parentId, depth) => {
@@ -23,8 +24,9 @@ export function renderTree(container, ws, selectedId, handlers) {
     const finish = save => {
       if (done) return;
       done = true;
-      if (save && input.value.trim() && input.value.trim() !== item.name) handlers.onRename(item.id, input.value);
-      else nameEl.hidden = false, input.remove();
+      const name = input.value.trim();
+      if (save && name && name !== item.name) handlers.onRename(item.id, name);
+      else { nameEl.hidden = false; input.remove(); }
     };
     input.addEventListener('keydown', e => {
       e.stopPropagation();
@@ -40,16 +42,15 @@ export function renderTree(container, ws, selectedId, handlers) {
   }
 
   function menuFor(row, item, x, y) {
-    const container = item.type === 'request' ? null : item.id;
     const items = [];
-    if (container) {
-      items.push({ label: 'New request', action: () => handlers.onNew('request', container) });
-      items.push({ label: 'New folder', action: () => handlers.onNew('folder', container) });
+    if (item.type !== 'request') {
+      items.push({ label: 'New request', icon: 'plus', action: () => handlers.onNew('request', item.id) });
+      items.push({ label: 'New folder', icon: 'folder', action: () => handlers.onNew('folder', item.id) });
       items.push('sep');
     }
-    items.push({ label: 'Rename', action: () => startRename(row, item) });
+    items.push({ label: 'Rename', icon: 'edit', action: () => startRename(row, item) });
     items.push({
-      label: 'Delete', danger: true, action: () => handlers.onDelete(item.id),
+      label: 'Delete', icon: 'trash', danger: true, action: () => handlers.onDelete(item.id),
       confirm: item.type === 'request' ? `Delete "${item.name}"?` : `Delete "${item.name}" and everything in it?`,
     });
     showMenu(x, y, items);
@@ -59,42 +60,38 @@ export function renderTree(container, ws, selectedId, handlers) {
     const isContainer = item.type !== 'request';
     const expanded = isContainer && handlers.isExpanded(item.id);
     const row = el('div', {
-      class: `node ${item.type}${item.id === selectedId ? ' selected' : ''}`,
+      class: `node ${item.type}`,
       role: 'treeitem',
       tabindex: item.id === selectedId ? '0' : '-1',
       'aria-selected': String(item.id === selectedId),
       'aria-expanded': isContainer ? String(expanded) : undefined,
       draggable: 'true',
       dataset: { id: item.id },
+      style: `--d:${depth}`,
     },
-    el('span', { class: 'twisty' }, isContainer ? (expanded ? '▾' : '▸') : ''),
-    item.type === 'request' ? el('span', { class: `method m-${item.method}` }, item.method) : null,
+    isContainer ? el('span', { class: 'caret', 'aria-hidden': 'true' }, expanded ? '▾' : '▸') : null,
+    item.type === 'folder' ? icon('folder', 'folder-icon') : null,
+    item.type === 'request' ? el('span', { class: `m ${item.method}` }, item.method) : null,
     el('span', { class: 'name', title: item.name }, item.name),
-    item.type === 'request' && item.mock.enabled ? el('span', { class: 'mock-dot', title: 'Mock is on' }, '●') : null);
-    row.style.setProperty('--depth', depth);
+    item.type === 'request' && item.mock.enabled ? el('span', { class: 'mdot', title: 'Mock on', 'aria-label': 'Mock on' }) : null);
 
     row.addEventListener('click', e => {
-      // Second click of a double-click: rename here. Handling it as a select
-      // would re-render the tree and detach this row before 'dblclick' fires.
-      if (e.detail === 2) {
-        startRename(row, item);
-        return;
-      }
+      // Second click of a double-click: rename here (a re-render would detach this row).
+      if (e.detail === 2) { startRename(row, item); return; }
       if (e.detail > 2) return;
       if (isContainer) handlers.toggle(item.id);
       handlers.onSelect(item.id);
     });
     row.addEventListener('keydown', e => {
       if (e.key === 'F2') startRename(row, item);
-      if (e.key === 'Enter' && isContainer) handlers.toggle(item.id);
+      if (e.key === 'Enter') isContainer ? handlers.toggle(item.id) : handlers.onSelect(item.id);
     });
     row.addEventListener('contextmenu', e => {
       e.preventDefault();
-      handlers.onSelect(item.id);
       menuFor(row, item, e.clientX, e.clientY);
     });
 
-    // Drop on a collection/folder = move inside (last); on a request = move before it.
+    // Drop on a collection/folder = move inside (last); on a request = before it.
     row.addEventListener('dragstart', e => { dragId = item.id; e.dataTransfer.effectAllowed = 'move'; });
     row.addEventListener('dragover', e => {
       if (!dragId || dragId === item.id) return;
@@ -120,5 +117,5 @@ export function renderTree(container, ws, selectedId, handlers) {
   }
 
   addNodes(null, 0);
-  if (!container.children.length) container.append(el('div', { class: 'empty' }, 'No collections yet.'));
+  if (!container.children.length) container.append(el('div', { class: 'side-empty' }, 'No collections yet.'));
 }

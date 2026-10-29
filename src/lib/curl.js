@@ -269,3 +269,26 @@ export function parseCurl(text) {
     warnings,
   };
 }
+
+// Splits a pasted or imported text holding several cURL commands. A command
+// continues onto the next line when its line ends with \ (bash) or ^ (cmd).
+export function splitCurlCommands(text) {
+  const out = [];
+  let current = null;
+  const continues = s => /[\\^]\s*$/.test(s);
+  for (const line of String(text ?? '').split(/\r?\n/)) {
+    if (current !== null && continues(current)) {
+      current += `\n${line}`;
+      continue;
+    }
+    if (current !== null) {
+      out.push(current);
+      current = null;
+    }
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    current = line.trimStart();
+  }
+  if (current !== null) out.push(current);
+  return out;
+}

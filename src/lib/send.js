@@ -36,7 +36,7 @@ export function buildSend(resolved) {
   };
 }
 
-export async function executeSend({ resolved, fetchFn, dnr, now, ruleId }) {
+export async function executeSend({ resolved, fetchFn, dnr, now, ruleId, signal }) {
   const { url, init, cookie } = buildSend(resolved);
   if (cookie) {
     await dnr.updateSessionRules({
@@ -50,7 +50,7 @@ export async function executeSend({ resolved, fetchFn, dnr, now, ruleId }) {
   }
   try {
     const started = now();
-    const res = await fetchFn(url, init);
+    const res = await fetchFn(url, signal ? { ...init, signal } : init);
     const text = await res.text();
     const timeMs = now() - started;
     return {

@@ -1,8 +1,7 @@
-// Response pane: status, time, size, Body (pretty JSON) and Headers.
+// Response pane: stats in the header, Body (foldable JSON / raw) and Headers.
 
-import { el } from './ui.js';
-
-const HIGHLIGHT_LIMIT = 300_000;
+import { el, icon, iconButton, toast } from './ui.js';
+import { parseJson, renderJsonView } from './json-view.js';
 
 export function formatSize(bytes) {
   if (bytes < 1024) return `${bytes} B`;
@@ -10,85 +9,88 @@ export function formatSize(bytes) {
   return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
 }
 
-const escapeHtml = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-
-function highlightJson(pretty) {
-  return escapeHtml(pretty).replace(
-    /("(?:\\.|[^"\\])*")(\s*:)?|\b(true|false|null)\b|(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)/g,
-    (m, str, colon, lit, num) => {
-      if (str) return colon ? `<span class="j-key">${str}</span>${colon}` : `<span class="j-str">${str}</span>`;
-      if (lit) return `<span class="j-lit">${lit}</span>`;
-      return `<span class="j-num">${num}</span>`;
-    },
-  );
-}
-
 export function prettyBody(text) {
-  try {
-    const value = JSON.parse(text);
-    if (value !== null && typeof value === 'object') return { json: true, text: JSON.stringify(value, null, 2) };
-  } catch {
-    // not JSON
-  }
-  return { json: false, text };
+  const value = parseJson(text);
+  return value ? { json: true, text: JSON.stringify(value, null, 2), value } : { json: false, text };
 }
 
-// entry: undefined | { loading } | { error } | { response }
-export function renderResponse(pane, entry, { onMockThis }) {
+const statusClass = s => (s < 300 ? 'ok' : s < 400 ? 'redirect' : 'err');
+const formatTime = ms => (ms < 1000 ? `${Math.round(ms)} ms` : `${(ms / 1000).toFixed(1)} s`);
+
+let ticker = null;
+
+// entry: undefined | { loading, startedAt } | { error } | { response }
+export function renderResponse(pane, stats, entry, { onMockThis, onRetry }) {
+  clearInterval(ticker);
   pane.textContent = '';
+  stats.textContent = '';
   if (!entry) {
-    pane.append(el('div', { class: 'hint' }, 'Press Send to see the response here.'));
+    pane.append(el('div', { class: 'pane-hint' }, icon('retry'), el('span', {}, 'Send to see the response')));
     return;
   }
   if (entry.loading) {
-    pane.append(el('div', { class: 'hint' }, 'Sending…'));
+    const time = el('b', {}, '0.0 s');
+    const tick = () => { time.textContent = `${((Date.now() - entry.startedAt) / 1000).toFixed(1)} s`; };
+    tick();
+    ticker = setInterval(() => { if (!pane.isConnected) clearInterval(ticker); else tick(); }, 100);
+    pane.append(el('div', { class: 'sending', role: 'status' }, el('span', { class: 'spinner', 'aria-hidden': 'true' }), time));
     return;
   }
   if (entry.error) {
-    pane.append(el('div', { class: 'error-box', role: 'alert' }, entry.error));
+    pane.append(el('div', { class: 'state-box err', role: 'alert' },
+      el('div', { class: 'row' }, icon('alert'), el('h3', {}, entry.error),
+        onRetry ? iconButton('retry', 'Retry', onRetry, { class: 'ibtn ml-auto' }) : null),
+      entry.detail ? el('p', {}, entry.detail) : null));
     return;
   }
+
   const r = entry.response;
-  let view = 'body';
-  let raw = false;
-  const body = el('div');
+  stats.append(
+    el('span', { class: `status ${statusClass(r.status)}` }, `${r.status} ${r.statusText || ''}`.trim()),
+    el('span', { title: 'Time' }, el('b', {}, formatTime(r.timeMs))),
+    el('span', { class: 'opt', title: 'Size' }, el('b', {}, formatSize(r.sizeBytes))));
+
   const pretty = prettyBody(r.bodyText);
+  let view = 'body';
+  let raw = !pretty.json;
+  const content = el('div', { class: 'pane', style: 'min-height:0' });
 
-  const draw = () => {
-    body.textContent = '';
+  const segBtn = (id, label) => el('button', { type: 'button', 'aria-pressed': String(view === id), onclick: () => { view = id; draw(); } }, label);
+  const tools = el('div', { class: 'resp-tools' });
+
+  function draw() {
+    tools.textContent = '';
+    content.textContent = '';
+    tools.append(el('div', { class: 'seg', role: 'group', 'aria-label': 'Section' }, segBtn('body', 'Body'), segBtn('headers', `Headers (${r.headers.length})`)));
+    const icons = el('div', { class: 'tool-icons ml-auto' });
+    tools.append(icons);
     if (view === 'headers') {
-      body.append(el('table', { class: 'headers' }, r.headers.map(([k, v]) => el('tr', {}, el('td', {}, k), el('td', {}, v)))));
-      return;
+      content.append(el('div', { class: 'headers-table' }, el('table', {}, r.headers.map(([k, v]) => el('tr', {}, el('td', {}, k), el('td', {}, v))))));
+    } else {
+      const fold = pretty.json && !raw ? iconButton('collapse', 'Collapse all', null) : null;
+      if (fold) icons.append(fold);
+      if (pretty.json) {
+        icons.append(
+          iconButton('pretty', 'Pretty', () => { raw = false; draw(); }, { 'aria-pressed': String(!raw) }),
+          iconButton('raw', 'Raw', () => { raw = true; draw(); }, { 'aria-pressed': String(raw) }));
+      }
+      if (r.bodyTruncated) content.append(el('div', { class: 'hint', style: 'padding:0 16px 4px' }, 'Showing the first 2 MB.'));
+      if (pretty.json && !raw) {
+        const box = el('div', { 'aria-label': 'Response body' });
+        content.append(box);
+        renderJsonView(box, pretty.value, { toggleButton: fold });
+      } else {
+        content.append(el('pre', { class: 'raw' }, raw ? r.bodyText : pretty.text));
+      }
     }
-    const pre = el('pre', { class: 'body' });
-    if (pretty.json && !raw && pretty.text.length < HIGHLIGHT_LIMIT) pre.innerHTML = highlightJson(pretty.text);
-    else pre.textContent = raw ? r.bodyText : pretty.text;
-    if (r.bodyTruncated) body.append(el('div', { class: 'hint' }, 'Large response: showing the first 2 MB.'));
-    body.append(pre);
-  };
+    icons.append(
+      iconButton('copy', 'Copy', async () => {
+        const text = view === 'headers' ? r.headers.map(([k, v]) => `${k}: ${v}`).join('\n') : r.bodyText;
+        try { await navigator.clipboard.writeText(text); toast('Copied'); } catch { toast('Copy failed'); }
+      }),
+      iconButton('mock', 'Mock this response', () => onMockThis(r)));
+  }
 
-  const tabs = el('div', { class: 'tabs', role: 'tablist' });
-  const drawTabs = () => {
-    tabs.textContent = '';
-    for (const [id, label] of [['body', 'Body'], ['headers', `Headers (${r.headers.length})`]]) {
-      tabs.append(el('button', { type: 'button', role: 'tab', class: 'tab', 'aria-selected': String(view === id), onclick: () => { view = id; drawTabs(); draw(); } }, label));
-    }
-    if (pretty.json) {
-      tabs.append(el('label', { class: 'hint', style: 'margin-left:auto;display:flex;align-items:center;gap:4px' },
-        el('input', { type: 'checkbox', checked: raw, onchange: e => { raw = e.target.checked; draw(); } }), 'Raw'));
-    }
-  };
-
-  pane.append(
-    el('div', { class: 'status-line' },
-      el('span', { class: `pill s${String(r.status)[0]}` }, `${r.status} ${r.statusText || ''}`.trim()),
-      el('span', { class: 'hint' }, `${Math.round(r.timeMs)} ms`),
-      el('span', { class: 'hint' }, formatSize(r.sizeBytes)),
-      el('span', { class: 'spacer' }),
-      el('button', { type: 'button', title: 'Copy this response into the Mock tab', onclick: () => onMockThis(r) }, 'Mock this')),
-    tabs,
-    body,
-  );
-  drawTabs();
+  pane.append(tools, content);
   draw();
 }

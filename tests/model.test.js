@@ -130,3 +130,14 @@ test('applyMutation does not mutate input', () => {
   assert.deepEqual(ws, before);
   assert.deepEqual(applyMutation(ws, { type: 'bogus' }, 1), { error: 'bad_mutation' });
 });
+
+test('disableAllMocks turns all off and touches only those', () => {
+  let ws = emptyWorkspace();
+  const c = rootId(ws);
+  for (const id of ['a', 'b', 'c']) ws = apply(ws, { type: 'addItem', id, itemType: 'request', parentId: c, name: id }, 1);
+  ws = apply(ws, { type: 'setMockEnabled', id: 'a', enabled: true }, 2);
+  ws = apply(ws, { type: 'setMockEnabled', id: 'b', enabled: true }, 2);
+  ws = apply(ws, { type: 'disableAllMocks' }, 9);
+  assert.deepEqual(['a', 'b', 'c'].map(id => ws.items[id].mock.enabled), [false, false, false]);
+  assert.deepEqual(['a', 'b', 'c'].map(id => ws.items[id].updatedAt), [9, 9, 1]);
+});

@@ -97,3 +97,28 @@ test('errors', () => {
   assert.deepEqual(parseCurl('curl -H "a: b"'), { error: 'No URL found' });
   assert.deepEqual(parseCurl("curl 'https://x.dev"), { error: 'Unterminated quote' });
 });
+
+import { splitCurlCommands } from '../src/lib/curl.js';
+
+test('splits several commands', () => {
+  const text = `# exported from the Network tab
+curl 'https://x.dev/a' \\
+  -H 'accept: */*'
+
+curl 'https://x.dev/b' -X POST --data-raw '{}'
+not a command
+curl ^"https://x.dev/c^" ^
+  -H ^"x: 1^"`;
+  const parts = splitCurlCommands(text);
+  assert.equal(parts.length, 4);
+  assert.equal(parseCurl(parts[0]).url, 'https://x.dev/a');
+  assert.deepEqual(parseCurl(parts[0]).headers.map(h => h.key), ['accept']);
+  assert.equal(parseCurl(parts[1]).method, 'POST');
+  assert.deepEqual(parseCurl(parts[2]), { error: 'Not a cURL command' });
+  assert.equal(parseCurl(parts[3]).url, 'https://x.dev/c');
+});
+
+test('keeps continuation lines with their command', () => {
+  assert.deepEqual(splitCurlCommands("curl 'https://x.dev' \\\n  -d 'a=1'"), ["curl 'https://x.dev' \\\n  -d 'a=1'"]);
+  assert.deepEqual(splitCurlCommands('   \n# only comments\n'), []);
+});
