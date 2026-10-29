@@ -67,6 +67,14 @@ svg.i { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-widt
 .icon-btn:hover, .ibtn:hover:not(:disabled) { background: var(--hover); color: var(--text); }
 .ibtn[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); }
 .ibtn:disabled { opacity: .4; cursor: default; }
+.sync-btn { position: relative; }
+.sync-btn[data-state="off"] { color: var(--faint); }
+.sync-btn[data-state="syncing"] svg { animation: pulse 1.2s ease-in-out infinite; color: var(--accent); }
+.sync-btn .dot { position: absolute; top: 5px; right: 5px; width: 7px; height: 7px; border-radius: 50%; background: var(--err); }
+@keyframes pulse { 50% { opacity: .35; } }
+.menu button:disabled { cursor: default; color: var(--muted); }
+.menu button:disabled:hover { background: transparent; }
+.menu button.menu-error { white-space: normal; color: var(--err); }
 .tool-icons { display: flex; gap: 2px; align-items: center; }
 .mdot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--mock); flex-shrink: 0; }
 

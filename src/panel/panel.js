@@ -41,6 +41,7 @@ const state = {
   editorFor: null,
   activeId: null, // the request shown in the main area (selection may be a folder)
   inspectedOrigin: null,
+  sync: { state: 'off', email: null, error: null, lastSyncAt: null },
 };
 
 export const inspectedTabId = chrome.devtools?.inspectedWindow?.tabId ?? (Number(new URLSearchParams(location.search).get('tabId')) || null);
@@ -411,6 +412,74 @@ document.addEventListener('keydown', e => {
   }
 });
 
+// ---------- Drive sync ----------
+
+const SYNC_PROBLEM = new Set(['error', 'signin', 'drive', 'confirm']);
+
+function ago(ms) {
+  const s = Math.round((Date.now() - ms) / 1000);
+  if (s < 60) return 'just now';
+  if (s < 3600) return `${Math.round(s / 60)} min ago`;
+  if (s < 86400) return `${Math.round(s / 3600)} h ago`;
+  return new Date(ms).toLocaleDateString();
+}
+
+function syncLabel(st) {
+  if (st.state === 'off') return 'Sync: off';
+  if (st.state === 'syncing') return 'Sync: syncing…';
+  if (st.state === 'ok') return `Sync: up to date${st.lastSyncAt ? ` (synced ${ago(st.lastSyncAt)})` : ''}`;
+  if (st.state === 'confirm') return 'Sync: waiting for your answer';
+  return `Sync: ${st.error ?? 'problem'}`;
+}
+
+function renderSync() {
+  const st = state.sync;
+  const btn = $('syncBtn');
+  btn.dataset.state = st.state;
+  btn.replaceChildren(icon(st.state === 'off' ? 'cloudOff' : 'cloud'), SYNC_PROBLEM.has(st.state) ? el('span', { class: 'dot', 'aria-hidden': 'true' }) : '');
+  btn.setAttribute('aria-label', syncLabel(st));
+  btn.title = syncLabel(st);
+}
+
+async function syncCall(msg) {
+  const res = await send(msg);
+  if (res?.confirm) confirmAccountDialog(res.confirm);
+  else if (res && !res.ok && res.error) toast(res.error, 5000);
+  return res;
+}
+
+function confirmAccountDialog({ email, previousEmail }) {
+  openDialog((box, close) => {
+    const answer = choice => { close(); syncCall({ type: 'syncConfirm', choice }); };
+    box.append(
+      el('h2', {}, `Sync with ${email}?`),
+      el('p', { class: 'hint', style: 'margin:0' }, `This device last synced with ${previousEmail}.`),
+      el('div', { class: 'actions', style: 'flex-wrap:wrap' },
+        el('button', { type: 'button', class: 'btn', onclick: () => answer('cancel') }, 'Cancel'),
+        el('button', { type: 'button', class: 'btn', onclick: () => answer('replace') }, `Use ${email}'s data`),
+        el('button', { type: 'button', class: 'btn-primary', onclick: () => answer('merge') }, "Merge this device's data")),
+    );
+  });
+}
+
+$('syncBtn').addEventListener('click', e => {
+  const r = e.currentTarget.getBoundingClientRect();
+  const st = state.sync;
+  const signIn = forceConsent => syncCall({ type: 'syncSignIn', forceConsent });
+  const items = [];
+  if (st.state === 'off' || !st.email) {
+    items.push({ label: 'Sign in with Google', icon: 'cloud', action: () => signIn(false) });
+  } else {
+    items.push({ label: st.email, disabled: true, action: () => {} });
+    if (st.state === 'drive') items.push({ label: 'Allow Drive access', icon: 'cloud', action: () => signIn(true) });
+    else if (st.state === 'signin') items.push({ label: 'Sign in again', icon: 'cloud', action: () => signIn(false) });
+    else if (st.state === 'error') items.push({ label: st.error, disabled: true, className: 'menu-error', action: () => {} }, { label: 'Retry', icon: 'retry', action: () => syncCall({ type: 'syncNow' }) });
+    else items.push({ label: 'Sync now', icon: 'retry', action: () => syncCall({ type: 'syncNow' }) });
+    items.push('sep', { label: 'Sign out', icon: 'x', action: () => syncCall({ type: 'syncSignOut' }) });
+  }
+  showMenu(Math.max(4, r.right - 220), r.bottom + 2, items);
+});
+
 const pauseAll = async () => {
   const res = await mutate({ type: 'disableAllMocks' });
   if (res.ok) toast('All mocks paused');
@@ -558,6 +627,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== 'local') return;
   if (changes.workspace?.newValue) state.ws = changes.workspace.newValue;
   if (changes.mockSites) state.mockSites = changes.mockSites.newValue || [];
+  if (changes.syncStatus) { state.sync = { ...state.sync, ...changes.syncStatus.newValue }; renderSync(); }
   if (changes.workspace || changes.mockSites) render();
 });
 
@@ -572,6 +642,9 @@ async function init() {
   state.ws = res.workspace;
   state.mockSites = res.mockSites;
   state.inspectedOrigin = await inspectedOrigin();
+  const { syncStatus } = await chrome.storage.local.get('syncStatus');
+  if (syncStatus) state.sync = { ...state.sync, ...syncStatus };
+  renderSync();
   if (!state.expanded.size) for (const c of children(state.ws, null)) state.expanded.add(c.id);
   render();
 }

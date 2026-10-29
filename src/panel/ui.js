@@ -25,6 +25,8 @@ const ICONS = {
   trash: '<path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/>',
   chevron: '<path d="m6 9 6 6 6-6"/>',
   sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+  cloud: '<path d="M17.5 19H7a5 5 0 1 1 1.2-9.86A6 6 0 0 1 19.5 11 4 4 0 0 1 17.5 19z"/>',
+  cloudOff: '<path d="M3 3l18 18"/><path d="M8.2 9.14A5 5 0 0 0 7 19h10.5M20.9 16.5A4 4 0 0 0 19.5 11a6 6 0 0 0-8.9-5.2"/>',
   moon: '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>',
 };
 
@@ -66,7 +68,7 @@ export function toast(message, ms = 2600) {
   toastTimer = setTimeout(() => { t.hidden = true; }, ms);
 }
 
-// Context menu. items: { label, icon?, action, danger?, confirm?, prefix? } | 'sep'
+// Context menu. items: { label, icon?, action, danger?, confirm?, prefix?, disabled?, className? } | 'sep'
 export function showMenu(x, y, items) {
   const menu = document.getElementById('menu');
   menu.textContent = '';
@@ -80,7 +82,7 @@ export function showMenu(x, y, items) {
   for (const item of items) {
     if (item === 'sep') { menu.append(el('div', { class: 'sep' })); continue; }
     menu.append(el('button', {
-      type: 'button', role: 'menuitem', class: item.danger ? 'danger' : '',
+      type: 'button', role: 'menuitem', class: [item.danger ? 'danger' : '', item.className ?? ''].join(' ').trim(), disabled: Boolean(item.disabled),
       onclick: () => {
         if (item.confirm) {
           menu.textContent = '';
