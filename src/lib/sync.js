@@ -115,9 +115,11 @@ export function createSyncer({ getWorkspace, updateWorkspace, setStatus, auth, s
     try {
       ({ email } = await auth.signIn({ forceConsent }));
     } catch (err) {
+      // The Drive box was left unticked on Google's screen: the panel explains
+      // which box to tick and signs in again with the permission screen forced.
       if (err instanceof DriveAccessMissing) {
         await setStatus({ state: 'drive', error: 'Allow Google Drive access to sync' });
-        return { ok: false, error: 'Allow Google Drive access to sync' };
+        return { ok: false, needsDrive: true };
       }
       if (err instanceof AuthRequired) return { ok: false, error: 'Sign-in was cancelled' };
       return { ok: false, error: describe(err).error };
