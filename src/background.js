@@ -129,6 +129,18 @@ async function handle(msg) {
       if (msg.type === 'addMockSite') await injectIntoOpenTabs(origin);
       return { ok: true, mockSites: sites };
     }
+    // The DevTools panel may not have these APIs itself.
+    case 'tabOrigin': {
+      const tab = await chrome.tabs.get(msg.tabId).catch(() => null);
+      return { origin: tab ? originOf(tab.url) : null };
+    }
+    case 'listAccess': {
+      const { origins = [] } = await chrome.permissions.getAll();
+      return { origins };
+    }
+    case 'removeAccess':
+      await chrome.permissions.remove({ origins: [msg.pattern] }).catch(() => {});
+      return { ok: true };
     default:
       return { ok: false, error: 'unknown_message' };
   }

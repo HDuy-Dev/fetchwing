@@ -48,14 +48,17 @@ export async function mutate(mutation) {
   return res;
 }
 
+// DevTools pages get only part of the extension API, so ask DevTools itself
+// (or the worker, when the panel runs as a normal tab in tests).
 export async function inspectedOrigin() {
-  if (!inspectedTabId) return null;
-  try {
-    const tab = await chrome.tabs.get(inspectedTabId);
-    return new URL(tab.url).origin;
-  } catch {
-    return null;
+  if (chrome.devtools?.inspectedWindow) {
+    return new Promise(resolve => {
+      chrome.devtools.inspectedWindow.eval('location.origin', (result, error) => resolve(error ? null : result));
+    });
   }
+  if (!inspectedTabId) return null;
+  const res = await send({ type: 'tabOrigin', tabId: inspectedTabId });
+  return res?.origin ?? null;
 }
 
 export const getState = () => state;

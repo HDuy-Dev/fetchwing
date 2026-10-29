@@ -38,14 +38,14 @@ export function openSettings(state) {
 
     const drawAccess = async () => {
       accessList.textContent = '';
-      const { origins = [] } = await chrome.permissions.getAll();
+      const { origins = [] } = await send({ type: 'listAccess' });
       const sites = origins.filter(o => /^https?:\/\//.test(o));
       if (!sites.length) accessList.append(el('div', { class: 'hint' }, 'No sites yet. Fetchwing asks the first time you send to a site.'));
       for (const pattern of sites) {
         accessList.append(el('div', { class: 'row' }, el('code', { style: 'flex:1' }, pattern.replace(/\/\*$/, '')), el('button', {
           type: 'button',
           onclick: async () => {
-            await chrome.permissions.remove({ origins: [pattern] }).catch(() => {});
+            await send({ type: 'removeAccess', pattern });
             const origin = pattern.replace(/\/\*$/, '');
             if (state.mockSites.includes(origin)) {
               const res = await send({ type: 'removeMockSite', origin });

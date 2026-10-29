@@ -13,11 +13,3 @@ export async function ensureOrigin(origin) {
     return 'pending';
   }
 }
-
-export async function hasOrigin(origin) {
-  try {
-    return await chrome.permissions.contains({ origins: [`${origin}/*`] });
-  } catch {
-    return false;
-  }
-}
