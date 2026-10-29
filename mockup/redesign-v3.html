@@ -54,7 +54,6 @@
   .search { flex: 1; max-width: 420px; margin: 0 auto; display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 8px 0 12px; border-radius: var(--r-lg); background: var(--surface-2); border: 1px solid var(--control); color: var(--faint); }
   .search kbd, kbd { font: 11px/1 inherit; padding: 2px 6px; border: 1px solid var(--control); border-radius: var(--r-sm); color: var(--muted); }
   .search kbd { margin-left: auto; }
-  .search-icon { display: none; }
   .btn { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border-radius: var(--r-lg); border: 1px solid var(--control); background: var(--surface-2); color: var(--text); white-space: nowrap; }
   .btn:hover { background: var(--hover); }
   .btn .lbl-short { display: none; }
@@ -160,7 +159,13 @@
   .ml-auto { margin-left: auto; }
   pre.code { margin: 0; flex: 1; overflow: auto; padding: 0 16px 16px; font: 12.5px/1.6 "JetBrains Mono", ui-monospace, Menlo, monospace; }
   pre.code .ln { display: inline-block; width: 28px; color: var(--faint); user-select: none; }
-  .k { color: var(--j-key); } .s { color: var(--j-str); } .n { color: var(--j-num); } .l { color: var(--j-lit); }
+  .json { flex: 1; min-height: 0; overflow: auto; padding: 0 16px 16px 8px; font: 12.5px/1.6 "JetBrains Mono", ui-monospace, Menlo, monospace; }
+  .jrow { display: flex; align-items: flex-start; white-space: pre; }
+  .jrow .ln { width: 32px; flex-shrink: 0; text-align: right; padding-right: 6px; color: var(--faint); user-select: none; }
+  .jrow .fold { width: 16px; flex-shrink: 0; border: 0; background: transparent; color: var(--faint); padding: 0; line-height: inherit; font: inherit; }
+  .jrow .fold:hover { color: var(--accent); }
+  .jrow .more { color: var(--faint); background: var(--surface-2); border-radius: var(--r-sm); padding: 0 4px; margin: 0 2px; cursor: pointer; }
+    .k { color: var(--j-key); } .s { color: var(--j-str); } .n { color: var(--j-num); } .l { color: var(--j-lit); }
 
   .state-box { margin: 16px; padding: 16px; border-radius: var(--r-lg); display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
   .state-box.err { border: 1px solid var(--err); background: var(--err-soft); }
@@ -197,7 +202,7 @@
     .side { position: absolute; left: 48px; top: 0; bottom: 0; z-index: 4; box-shadow: var(--shadow); display: none; }
     .app.drawer-open .side { display: flex; }
     .search { display: none; }
-    .search-icon { display: grid; margin-left: auto; }
+    .mock-chip { margin-left: auto; }
     .btn .lbl-long { display: none; }
     .btn .lbl-short { display: inline; }
     .drawer-toggle { display: grid; }
@@ -260,7 +265,6 @@
       <span class="word">Fetchwing</span>
     </div>
     <div class="search" role="button" tabindex="0" aria-label="Search requests (Command K)"><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>Search</div>
-    <button class="icon-btn search-icon" aria-label="Search requests (Command K)" title="Search (⌘K)"><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></button>
     <button class="btn mock-chip" id="mockChip" aria-haspopup="menu" title="2 mocks on" aria-label="2 mocks on">
       <svg class="i" viewBox="0 0 24 24"><path d="M17 3l4 4-4 4"/><path d="M3 11V9a2 2 0 0 1 2-2h16"/><path d="M7 21l-4-4 4-4"/><path d="M21 13v2a2 2 0 0 1-2 2H3"/></svg>
       2
@@ -346,16 +350,9 @@
 
         <div id="respPane" style="display:flex;flex-direction:column;flex:1;min-height:0">
           <div class="resp-tools">
-            <div class="seg" role="group" aria-label="Section"><button aria-pressed="true">Body</button><button aria-pressed="false">Headers</button></div><div class="tool-icons ml-auto"><button class="ibtn" aria-pressed="true" aria-label="Pretty" title="Pretty"><svg class="i" viewBox="0 0 24 24"><path d="M8 4c-2 0-3 1-3 3v2c0 1.5-1 2.5-2 3 1 .5 2 1.5 2 3v2c0 2 1 3 3 3"/><path d="M16 4c2 0 3 1 3 3v2c0 1.5 1 2.5 2 3-1 .5-2 1.5-2 3v2c0 2-1 3-3 3"/></svg></button><button class="ibtn" aria-pressed="false" aria-label="Raw" title="Raw"><svg class="i" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg></button><button class="ibtn" aria-label="Copy response" title="Copy"><svg class="i" viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button><button class="ibtn" aria-label="Mock this response" title="Mock this response"><svg class="i" viewBox="0 0 24 24"><path d="M17 3l4 4-4 4"/><path d="M3 11V9a2 2 0 0 1 2-2h16"/><path d="M7 21l-4-4 4-4"/><path d="M21 13v2a2 2 0 0 1-2 2H3"/></svg></button></div>
+            <div class="seg" role="group" aria-label="Section"><button aria-pressed="true">Body</button><button aria-pressed="false">Headers</button></div><div class="tool-icons ml-auto"><button class="ibtn" id="foldAll" aria-label="Collapse all" title="Collapse all"><svg class="i" viewBox="0 0 24 24"><path d="m7 15 5-5 5 5"/><path d="M7 20h10M7 4h10"/></svg></button><button class="ibtn" aria-pressed="true" aria-label="Pretty" title="Pretty"><svg class="i" viewBox="0 0 24 24"><path d="M8 4c-2 0-3 1-3 3v2c0 1.5-1 2.5-2 3 1 .5 2 1.5 2 3v2c0 2 1 3 3 3"/><path d="M16 4c2 0 3 1 3 3v2c0 1.5 1 2.5 2 3-1 .5-2 1.5-2 3v2c0 2-1 3-3 3"/></svg></button><button class="ibtn" aria-pressed="false" aria-label="Raw" title="Raw"><svg class="i" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg></button><button class="ibtn" aria-label="Copy response" title="Copy"><svg class="i" viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button><button class="ibtn" aria-label="Mock this response" title="Mock this response"><svg class="i" viewBox="0 0 24 24"><path d="M17 3l4 4-4 4"/><path d="M3 11V9a2 2 0 0 1 2-2h16"/><path d="M7 21l-4-4 4-4"/><path d="M21 13v2a2 2 0 0 1-2 2H3"/></svg></button></div>
           </div>
-<pre class="code"><span class="ln">1</span>{
-<span class="ln">2</span>  <span class="k">"users"</span>: [
-<span class="ln">3</span>    { <span class="k">"id"</span>: <span class="n">1</span>, <span class="k">"name"</span>: <span class="s">"Ann Tran"</span>, <span class="k">"active"</span>: <span class="l">true</span> },
-<span class="ln">4</span>    { <span class="k">"id"</span>: <span class="n">2</span>, <span class="k">"name"</span>: <span class="s">"Bao Le"</span>, <span class="k">"active"</span>: <span class="l">false</span> }
-<span class="ln">5</span>  ],
-<span class="ln">6</span>  <span class="k">"page"</span>: <span class="n">2</span>,
-<span class="ln">7</span>  <span class="k">"total"</span>: <span class="n">42</span>
-<span class="ln">8</span>}</pre>
+<div class="json" id="jsonView" role="tree" aria-label="Response body"></div>
         </div>
 
         <div id="sendingPane" style="display:none;flex:1;align-items:center;justify-content:center;gap:12px;color:var(--muted)"><span class="spinner" aria-hidden="true"></span><b style="color:var(--text)">1.8 s</b></div>
@@ -412,6 +409,75 @@
     $('respSection').style.display = empty ? 'none' : '';
     document.querySelector('.tabs-open').style.display = empty ? 'none' : '';
   }
+  // Long sample response so scrolling and folding can be tried.
+  const sample = {
+    users: Array.from({ length: 30 }, (_, i) => ({ id: i + 1, name: ['Ann Tran', 'Bao Le', 'Chi Pham', 'Dung Vo', 'Em Ho'][i % 5], email: `user${i + 1}@example.com`, active: i % 3 !== 0, roles: i % 4 ? ['viewer'] : ['admin', 'editor'] })),
+    page: 2, size: 30, total: 142,
+    links: { self: '/api/users?page=2', next: '/api/users?page=3', prev: '/api/users?page=1' },
+  };
+  const esc = v => String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  const lit = v => typeof v === 'string' ? `<span class="s">"${esc(v)}"</span>` : typeof v === 'number' ? `<span class="n">${v}</span>` : `<span class="l">${v}</span>`;
+  function renderJson(root) {
+    const view = document.getElementById('jsonView');
+    view.textContent = '';
+    let ln = 0;
+    const row = (depth, html, foldable) => {
+      const r = document.createElement('div');
+      r.className = 'jrow';
+      r.style.paddingLeft = '0';
+      r.innerHTML = `<span class="ln">${++ln}</span>${foldable ? '<button class="fold" aria-expanded="true" aria-label="Collapse">▾</button>' : '<span class="fold"></span>'}<span class="jc" style="padding-left:${depth * 2}ch">${html}</span>`;
+      view.append(r);
+      return r;
+    };
+    function walk(value, depth, key, last) {
+      const k = key === null ? '' : `<span class="k">"${esc(key)}"</span>: `;
+      const comma = last ? '' : ',';
+      if (value && typeof value === 'object') {
+        const isArr = Array.isArray(value);
+        const entries = isArr ? value.map((v, i) => [null, v]) : Object.entries(value);
+        const [o, c] = isArr ? ['[', ']'] : ['{', '}'];
+        if (!entries.length) { row(depth, `${k}${o}${c}${comma}`); return; }
+        const start = row(depth, `${k}${o}`, true);
+        const childStart = view.children.length;
+        entries.forEach(([ck, cv], i) => walk(cv, depth + 1, isArr ? null : ck, i === entries.length - 1));
+        const end = row(depth, `${c}${comma}`);
+        const kids = [...view.children].slice(childStart, view.children.length);
+        const label = isArr ? `${entries.length} items` : `${entries.length} keys`;
+        const btn = start.querySelector('.fold');
+        const collapsed = `${k}${o}<span class="more">… ${label}</span>${c}${comma}`;
+        const open = start.innerHTML;
+        start.__toggle = force => {
+          const close = force ?? btn.getAttribute('aria-expanded') === 'true';
+          // Reopening a block must not reopen blocks inside it that are still collapsed.
+          const keepHidden = new Set();
+          if (!close) kids.forEach(kid => { if (kid.__collapsed) kid.__kids.forEach(k => keepHidden.add(k)); });
+          kids.forEach(kid => { kid.hidden = close || keepHidden.has(kid); });
+          start.__collapsed = close;
+          const parts = start.innerHTML.split('</button>');
+          start.innerHTML = open.split('</button>')[0] + '</button>' + (close ? `<span class="jc" style="padding-left:${depth * 2}ch">${collapsed}</span>` : open.split('</button>')[1]);
+          const b = start.querySelector('.fold');
+          b.textContent = close ? '▸' : '▾';
+          b.setAttribute('aria-expanded', String(!close));
+          b.setAttribute('aria-label', close ? 'Expand' : 'Collapse');
+          b.onclick = () => start.__toggle();
+          const more = start.querySelector('.more');
+          if (more) more.onclick = () => start.__toggle(false);
+        };
+        btn.onclick = () => start.__toggle();
+        start.__depth = depth;
+        start.__kids = kids;
+      } else {
+        row(depth, `${k}${lit(value)}${comma}`);
+      }
+    }
+    walk(root, 0, null, true);
+  }
+  renderJson(sample);
+  document.getElementById('foldAll').addEventListener('click', () => {
+    // Collapse every block one level below the root, like an outline view.
+    [...document.querySelectorAll('#jsonView .jrow')].filter(r => r.__toggle && r.__depth === 1).forEach(r => r.__toggle(true));
+  });
+
 
   document.querySelectorAll('.picker button').forEach(btn => btn.addEventListener('click', () => {
     const key = btn.dataset.set;
