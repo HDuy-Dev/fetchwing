@@ -1,5 +1,6 @@
 {
   "manifest_version": 3,
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA7nGIxBs+1Q2jvwvDjFuaDnNuX30F0lHmfKxBzPfei+yW9hUBsoAQslhBdEzFNafi7hcNr+z6e1OoWDUeas0yAffjIyCcnWmgLYe5F5OWmxprmShwvKk9aXsToxCHmm7xP8MFAs7wJAYDp1mLrHKdIBZZCwtIYbwX48z0c0PcvPvl6ksK/4Rl5xK1rifkfInnhFVjuzR5iSbXX2YqgXJng+Pst/Kja9vQWRw9/b/lTecCSogKvVz+RHq2OPDgjByluPD6gAFthMFBvOQDO9RyFJDHVxWZaImc/EFVFRCRaXrsnAo7Ybz38uhofFV1C9gPLuv/pQrN6HuvcKOsmDGp9QIDAQAB",
   "name": "Fetchwing",
   "version": "1.0.0",
   "description": "API client in DevTools: paste cURL, send requests, organise collections, and mock responses for web pages.",
