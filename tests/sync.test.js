@@ -194,3 +194,18 @@ test('signOut runs a last round, then clears account and driveFile; local data k
   assert.equal(h.state.ws.items.a.name, 'unsynced');
   assert.equal(h.state.status.state, 'off');
 });
+
+test('missing Drive permission on sign-in asks to allow it', async () => {
+  const h = harness({ account: null });
+  h.auth.signIn = async () => { throw new DriveAccessMissing('no drive'); };
+  assert.deepEqual(await h.syncer.signIn(), { ok: false, needsDrive: true });
+  assert.equal(h.state.status.state, 'drive');
+  assert.equal(h.area.data.account, undefined);
+  assert.deepEqual(h.calls, []);
+  // Ticking the box the second time signs in normally.
+  let forced;
+  h.auth.signIn = async ({ forceConsent }) => { forced = forceConsent; return { email: 'me@x.com', token: 'T' }; };
+  assert.deepEqual(await h.syncer.signIn({ forceConsent: true }), { ok: true });
+  assert.equal(forced, true);
+  assert.deepEqual(h.area.data.account, { email: 'me@x.com' });
+});

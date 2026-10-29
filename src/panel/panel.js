@@ -444,8 +444,24 @@ function renderSync() {
 async function syncCall(msg) {
   const res = await send(msg);
   if (res?.confirm) confirmAccountDialog(res.confirm);
+  else if (res?.needsDrive) driveHelpDialog();
   else if (res && !res.ok && res.error) toast(res.error, 5000);
   return res;
+}
+
+function driveHelpDialog() {
+  openDialog((box, close) => {
+    box.setAttribute('role', 'alertdialog');
+    box.append(
+      el('h2', {}, 'Google Drive access is needed to sync'),
+      el('p', { class: 'hint', style: 'margin:0' }, 'On the Google screen, tick ',
+        el('b', {}, '"See, edit, create and delete only the specific Google Drive files you use with this app"'),
+        '. Fetchwing can\'t see any other file in your Drive.'),
+      el('div', { class: 'actions' },
+        el('button', { type: 'button', class: 'btn', onclick: () => { close(); syncCall({ type: 'syncSignOut' }); } }, 'Cancel'),
+        el('button', { type: 'button', class: 'btn-primary', onclick: () => { close(); syncCall({ type: 'syncSignIn', forceConsent: true }); } }, 'Try again')),
+    );
+  });
 }
 
 function confirmAccountDialog({ email, previousEmail }) {
@@ -467,7 +483,10 @@ $('syncBtn').addEventListener('click', e => {
   const st = state.sync;
   const signIn = forceConsent => syncCall({ type: 'syncSignIn', forceConsent });
   const items = [];
-  if (st.state === 'off' || !st.email) {
+  if (st.state === 'drive' && !st.email) {
+    items.push({ label: 'Allow Drive access', icon: 'cloud', action: () => signIn(true) },
+      { label: 'Cancel', icon: 'x', action: () => syncCall({ type: 'syncSignOut' }) });
+  } else if (st.state === 'off' || !st.email) {
     items.push({ label: 'Sync with Google Drive', icon: 'cloud', action: () => signIn(false) });
   } else {
     items.push({ label: st.email, disabled: true, action: () => {} });
