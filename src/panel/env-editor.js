@@ -1,11 +1,13 @@
 // Environments dialog: list on the left, variables of the chosen one on the right.
 
 import { newId, liveEnvironments } from '../lib/model.js';
-import { el, openDialog, debounce } from './ui.js';
+import { el, icon, openDialog, debounce } from './ui.js';
 import { mutate } from './panel.js';
 
-export function openEnvironments(state) {
-  let chosen = state.ws.activeEnvId ?? liveEnvironments(state.ws)[0]?.id ?? null;
+// opts: { envId?, addVar? } — open on one environment, optionally with a new variable row.
+export function openEnvironments(state, { envId, addVar } = {}) {
+  let chosen = envId ?? state.ws.activeEnvId ?? liveEnvironments(state.ws)[0]?.id ?? null;
+  let pendingVar = addVar ?? null;
 
   openDialog((box, close) => {
     const list = el('div', { style: 'display:flex;flex-direction:column;gap:2px;min-width:150px' });
@@ -16,19 +18,20 @@ export function openEnvironments(state) {
       for (const env of liveEnvironments(state.ws)) {
         list.append(el('button', {
           type: 'button',
-          class: env.id === chosen ? 'primary' : 'ghost',
-          style: 'text-align:left',
+          class: 'list-row',
+          'aria-current': env.id === chosen ? 'true' : undefined,
+          style: env.id === chosen ? 'background:var(--select)' : undefined,
           onclick: () => { chosen = env.id; drawList(); drawEditor(); },
-        }, env.name + (env.id === state.ws.activeEnvId ? ' (active)' : '')));
+        }, el('span', { class: 'name' }, env.name), env.id === state.ws.activeEnvId ? el('span', { class: 'mdot', style: 'background:var(--accent)', title: 'Active', 'aria-label': 'Active' }) : null));
       }
       list.append(el('button', {
-        type: 'button', class: 'ghost',
+        type: 'button', class: 'list-row', 'aria-label': 'Add environment', title: 'Add environment',
         onclick: async () => {
           const id = newId();
           const res = await mutate({ type: 'addEnvironment', id, name: 'New environment' });
           if (res.ok) { chosen = id; await refreshFromStorage(); drawList(); drawEditor(); }
         },
-      }, '+ Add environment'));
+      }, icon('plus'), el('span', { class: 'name hint' }, 'New')));
     };
 
     const drawEditor = () => {
@@ -39,6 +42,7 @@ export function openEnvironments(state) {
         return;
       }
       const vars = structuredClone(env.vars);
+      if (pendingVar) { vars.push({ key: pendingVar, value: '', secret: false }); pendingVar = null; }
       const saveVars = debounce(() => mutate({ type: 'updateEnvironment', id: env.id, patch: { vars: vars.filter(v => v.key || v.value) } }), 300);
       const nameInput = el('input', { type: 'text', value: env.name, 'aria-label': 'Environment name' });
       nameInput.addEventListener('change', () => mutate({ type: 'updateEnvironment', id: env.id, patch: { name: nameInput.value } }).then(refreshFromStorage).then(drawList));
@@ -51,28 +55,28 @@ export function openEnvironments(state) {
           rows.append(el('div', { class: 'row' },
             el('input', { type: 'text', value: v.key, placeholder: 'Variable', 'aria-label': 'Variable name', oninput: e => { v.key = e.target.value; saveVars(); } }),
             valueInput,
-            el('label', { class: 'hint', title: 'Secret values stay on this device and are never synced' },
-              el('input', { type: 'checkbox', checked: v.secret, onchange: e => { v.secret = e.target.checked; valueInput.type = v.secret ? 'password' : 'text'; saveVars(); } }), 'Secret'),
-            el('button', { type: 'button', class: 'ghost x', 'aria-label': 'Remove variable', onclick: () => { vars.splice(i, 1); saveVars(); drawRows(); } }, '✕')));
+            el('label', { class: 'hint', style: 'display:flex;align-items:center', title: 'Secret: stays on this device, never synced' },
+              el('input', { type: 'checkbox', class: 'cbx', checked: v.secret, onchange: e => { v.secret = e.target.checked; valueInput.type = v.secret ? 'password' : 'text'; saveVars(); } }), 'Secret'),
+            el('button', { type: 'button', class: 'ibtn', 'aria-label': 'Remove variable', title: 'Remove', onclick: () => { vars.splice(i, 1); saveVars(); drawRows(); } }, icon('x'))));
         });
-        rows.append(el('div', {}, el('button', { type: 'button', class: 'ghost', onclick: () => { vars.push({ key: '', value: '', secret: false }); drawRows(); } }, '+ Add variable')));
+        rows.append(el('div', {}, el('button', { type: 'button', class: 'ibtn', 'aria-label': 'Add variable', title: 'Add variable', onclick: () => { vars.push({ key: '', value: '', secret: false }); drawRows(); rows.querySelectorAll('input[type=text]')[vars.length * 2 - 2]?.focus(); } }, icon('plus'))));
       };
       drawRows();
 
       editor.append(
-        el('label', { class: 'row' }, 'Name ', nameInput),
-        el('div', { class: 'hint' }, 'Use variables as {{name}} in URLs, headers and bodies.'),
+        el('div', { class: 'row' }, nameInput),
+        el('div', { class: 'hint' }, 'Use as {{name}}'),
         rows,
         el('div', { class: 'row' },
-          el('button', { type: 'button', onclick: () => mutate({ type: 'setActiveEnv', id: env.id }).then(refreshFromStorage).then(drawList) }, 'Use this environment'),
+          env.id === state.ws.activeEnvId ? el('span', { class: 'hint' }, 'Active') : el('button', { type: 'button', class: 'btn', onclick: () => mutate({ type: 'setActiveEnv', id: env.id }).then(refreshFromStorage).then(drawList).then(drawEditor) }, 'Use'),
           el('span', { class: 'spacer', style: 'flex:1' }),
-          el('button', { type: 'button', class: 'danger', onclick: async () => {
+          el('button', { type: 'button', class: 'ibtn', style: 'color:var(--err)', 'aria-label': 'Delete environment', title: 'Delete environment', onclick: async () => {
             await mutate({ type: 'deleteEnvironment', id: env.id });
             await refreshFromStorage();
             chosen = state.ws.activeEnvId ?? liveEnvironments(state.ws)[0]?.id ?? null;
             drawList();
             drawEditor();
-          } }, 'Delete environment')),
+          } }, icon('trash'))),
       );
     };
 
@@ -84,7 +88,7 @@ export function openEnvironments(state) {
     box.append(
       el('h2', {}, 'Environments'),
       el('div', { style: 'display:flex;gap:12px;align-items:flex-start' }, list, editor),
-      el('div', { class: 'actions' }, el('button', { type: 'button', class: 'primary', onclick: close }, 'Done')),
+      el('div', { class: 'actions' }, el('button', { type: 'button', class: 'btn-primary', onclick: close }, 'Done')),
     );
     drawList();
     drawEditor();

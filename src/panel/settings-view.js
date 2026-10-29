@@ -1,6 +1,6 @@
 // Settings dialog: where mocks run, and which sites Fetchwing can reach.
 
-import { el, openDialog } from './ui.js';
+import { el, icon, openDialog } from './ui.js';
 import { ensureOrigin } from './permissions.js';
 
 const send = msg => chrome.runtime.sendMessage(msg);
@@ -15,24 +15,24 @@ export function openSettings(state) {
       if (!state.mockSites.length) mockList.append(el('div', { class: 'hint' }, 'None yet. Turning a mock on adds the page open in this tab.'));
       for (const origin of state.mockSites) {
         mockList.append(el('div', { class: 'row' }, el('code', { style: 'flex:1' }, origin), el('button', {
-          type: 'button',
+          type: 'button', class: 'ibtn', 'aria-label': `Stop mocking on ${origin}`, title: 'Remove',
           onclick: async () => {
             const res = await send({ type: 'removeMockSite', origin });
             if (res?.ok) { state.mockSites = res.mockSites; drawMockSites(); }
           },
-        }, 'Remove')));
+        }, icon('x'))));
       }
       const here = state.inspectedOrigin;
       if (here && /^https?:/.test(here) && !state.mockSites.includes(here)) {
         mockList.append(el('div', { class: 'row' }, el('button', {
-          type: 'button',
+          type: 'button', class: 'btn',
           onclick: async () => {
             const access = await ensureOrigin(here);
             if (access !== 'granted') return;
             const res = await send({ type: 'addMockSite', origin: here });
             if (res?.ok) { state.mockSites = res.mockSites; drawMockSites(); }
           },
-        }, `Run mocks on ${here}`)));
+        }, icon('plus'), here)));
       }
     };
 
@@ -43,7 +43,7 @@ export function openSettings(state) {
       if (!sites.length) accessList.append(el('div', { class: 'hint' }, 'No sites yet. Fetchwing asks the first time you send to a site.'));
       for (const pattern of sites) {
         accessList.append(el('div', { class: 'row' }, el('code', { style: 'flex:1' }, pattern.replace(/\/\*$/, '')), el('button', {
-          type: 'button',
+          type: 'button', class: 'ibtn', 'aria-label': `Remove access to ${pattern}`, title: 'Remove access',
           onclick: async () => {
             await send({ type: 'removeAccess', pattern });
             const origin = pattern.replace(/\/\*$/, '');
@@ -54,17 +54,17 @@ export function openSettings(state) {
             }
             drawAccess();
           },
-        }, 'Remove access')));
+        }, icon('x'))));
       }
     };
 
     box.append(
       el('h2', {}, 'Settings'),
-      el('div', { class: 'hint' }, 'Sites where mocks run'),
+      el('h3', { class: 'hint' }, 'Mocks run on'),
       mockList,
-      el('div', { class: 'hint', style: 'margin-top:8px' }, 'Sites Fetchwing can access'),
+      el('h3', { class: 'hint', style: 'margin-top:8px' }, 'Site access'),
       accessList,
-      el('div', { class: 'actions' }, el('button', { type: 'button', class: 'primary', onclick: close }, 'Done')),
+      el('div', { class: 'actions' }, el('button', { type: 'button', class: 'btn-primary', onclick: close }, 'Done')),
     );
     drawMockSites();
     drawAccess();

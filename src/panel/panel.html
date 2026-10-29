@@ -1,48 +1,55 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-mode="dark">
 <head>
 <meta charset="utf-8">
 <title>Fetchwing</title>
 <link rel="stylesheet" href="panel.css">
 </head>
 <body>
-<div class="app">
-  <header class="topbar">
-    <span class="brand">Fetchwing</span>
-    <label class="env">
-      <span class="sr-only">Environment</span>
-      <select id="envSelect" title="Active environment"></select>
-    </label>
-    <button class="ghost" id="envEdit" type="button" title="Edit environments">Environments</button>
-    <span class="spacer"></span>
-    <button class="mocks-on" id="mocksOn" type="button" hidden></button>
-    <button class="ghost" id="settingsBtn" type="button" title="Settings">Settings</button>
+<div class="app" id="app">
+  <header class="top">
+    <div class="logo"><span class="mark" id="logoMark" aria-hidden="true"></span><span class="word">Fetchwing</span></div>
+    <div class="search" id="searchBox" role="button" tabindex="0" aria-label="Search requests" title="Search (⌘K)"></div>
+    <button class="btn mock-chip" id="mockChip" type="button" aria-haspopup="menu" hidden></button>
+    <label class="env-pill" id="envPill" title="Environment"><span id="envIcon" aria-hidden="true"></span><select id="envSelect" aria-label="Environment"></select></label>
+    <button class="icon-btn" id="settingsBtn" type="button" aria-label="Settings" title="Settings"></button>
   </header>
 
-  <div class="main">
-    <aside class="sidebar">
-      <div class="sidebar-actions">
-        <button class="primary" id="pasteCurl" type="button" title="Create a request from a cURL command in the clipboard">Paste cURL</button>
-        <button id="newMenuBtn" type="button" aria-haspopup="menu">New ▾</button>
-      </div>
-      <div class="tree" id="tree" role="tree" aria-label="Collections"></div>
+  <div class="body">
+    <nav class="rail" aria-label="Sections">
+      <button class="drawer-toggle" id="drawerToggle" type="button" aria-label="Show sidebar" title="Show sidebar"></button>
+      <button type="button" data-section="collections" aria-label="Collections" title="Collections"></button>
+      <button type="button" data-section="environments" aria-label="Environments" title="Environments"></button>
+      <button type="button" data-section="mocks" aria-label="Mocks" title="Mocks"></button>
+    </nav>
+
+    <aside class="side" id="side">
+      <div class="side-head"><h2 id="sideTitle"></h2><div class="tool-icons" id="sideActions"></div></div>
+      <div class="side-content" id="sideContent"></div>
     </aside>
 
-    <section class="workspace" id="workspace">
-      <div class="empty" id="emptyState">Paste a cURL command or create a request to get started.</div>
-      <div class="editor" id="editor" hidden></div>
-      <div class="bottom" id="bottom" hidden>
-        <div class="tabs" role="tablist">
-          <button role="tab" class="tab" data-pane="response" aria-selected="true">Response</button>
-          <button role="tab" class="tab" data-pane="mock" aria-selected="false">Mock <span class="mock-state" id="mockTabState"></span></button>
-        </div>
-        <div class="pane" id="responsePane"></div>
-        <div class="pane" id="mockPane" hidden></div>
+    <main class="main">
+      <div class="tabs-open" id="openTabs" role="tablist" aria-label="Open requests"></div>
+      <div class="empty-main" id="emptyMain"></div>
+      <div class="work" id="work" hidden>
+        <section class="req" id="editor" aria-label="Request"></section>
+        <section class="resp" id="bottom" aria-label="Response and mock">
+          <div class="resp-head">
+            <div role="tablist" style="display:flex;gap:16px">
+              <button class="subtab" role="tab" type="button" data-pane="response" aria-selected="true">Response</button>
+              <button class="subtab" role="tab" type="button" data-pane="mock" aria-selected="false">Mock <span class="mdot" id="mockTabDot" title="Mock on" aria-label="Mock on" hidden></span></button>
+            </div>
+            <div class="stats" id="stats"></div>
+          </div>
+          <div class="pane" id="responsePane"></div>
+          <div class="pane" id="mockPane" hidden></div>
+        </section>
       </div>
-    </section>
+    </main>
   </div>
 </div>
 
+<input type="file" id="importFile" accept=".txt,.sh,.curl,text/plain" hidden>
 <div class="menu" id="menu" role="menu" hidden></div>
 <div class="dialog-backdrop" id="dialog" hidden></div>
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
