@@ -567,6 +567,9 @@ function renderSide() {
 
 // ---------- render ----------
 
+const REQUEST_FIELDS = ['method', 'url', 'headers', 'body'];
+const sameRequest = (draft, item) => REQUEST_FIELDS.every(k => JSON.stringify(draft[k]) === JSON.stringify(item[k]));
+
 function renderEmpty() {
   const box = $('emptyMain');
   box.textContent = '';
@@ -605,8 +608,10 @@ function render() {
     renderEmpty();
     return;
   }
-  if (state.editorFor !== item.id) {
-    state.editor?.flush();
+  // A newer version from sync (or another panel) replaces an editor with no unsaved typing.
+  const stale = state.editorFor === item.id && !state.editor.isPending() && !sameRequest(state.editor.getDraft(), item);
+  if (state.editorFor !== item.id || stale) {
+    if (!stale) state.editor?.flush();
     state.editorFor = item.id;
     state.editor = createRequestEditor($('editor'), item, {
       missingFor: url => resolveVars(url, envVars(state.ws)).missing,
