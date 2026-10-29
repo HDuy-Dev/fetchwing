@@ -40,7 +40,7 @@ Reload the extension. Open DevTools → **Fetchwing** → cloud button → **Syn
 4. Listing:
    - Description: see "Store listing text" below.
    - Icon: `assets/icons/icon-128.png`.
-   - Screenshots, uploaded in this order: `docs/store/screenshot-1.png` … `screenshot-4.png` (1280×800).
+   - Screenshots, uploaded in this order: `docs/store/screenshot-1.png` … `screenshot-5.png` (1280×800).
    - Small promo tile: `docs/store/promo-small.png` (440×280).
    - Category: Developer Tools. Language: English.
    - Privacy practices tab: paste the single purpose, permission justifications and data disclosure from `docs/COMPLIANCE.md`.
@@ -53,17 +53,17 @@ Repo **Settings → Pages → Deploy from a branch → `main` / `/docs`**. The s
 
 ## Store listing text
 
-Name (`manifest.json` `name`): **Fetchwing**
+Name (`manifest.json` `name`, max 75 characters): **Fetchwing – API Client & Mock Server for DevTools** (49). The brand comes first, then the words people search for. `short_name` stays "Fetchwing", and the DevTools tab is still called Fetchwing.
 
-Short description (`manifest.json` `description`, max 132 characters):
+Short description (`manifest.json` `description`, max 132 characters, 121 used):
 
-> API client in DevTools: paste cURL, send requests, organise collections, and mock responses for web pages.
+> REST API client for DevTools: paste cURL, send HTTP requests, organize collections, and mock API responses on live pages.
 
-Detailed description:
+Detailed description (keep "mock" at 6 mentions or fewer; the spam policy flags repeated keywords):
 
-> Fetchwing is a lightweight API client that lives in Chrome DevTools. Grab a request from the Network tab, send it again, tweak it, and make your web page get the response you want while the real API is unfinished or misbehaving.
+> Fetchwing is a lightweight REST API client that lives in Chrome DevTools, with built-in API mocking. Copy a request as cURL from the Network tab, paste it, send it, tweak it, and make your page get the JSON response you want while the real API is unfinished or misbehaving.
 >
-> SEND REQUESTS
+> SEND HTTP REQUESTS
 > • Network tab → right-click → Copy as cURL, then one click on Paste cURL
 > • Import a file holding many cURL commands at once
 > • Edit method, URL, query parameters, headers and body; cookies from cURL are sent too
@@ -71,19 +71,19 @@ Detailed description:
 > • Collections, folders, open tabs and quick search (Ctrl/⌘+K)
 > • Environments with {{variables}}; secret values stay on your computer
 >
-> MOCK RESPONSES
-> • Turn on a mock and pages calling the same method and URL get your status, headers, body and delay
+> MOCK API RESPONSES
+> • Turn one on and pages calling the same method and URL get your status, headers, body and delay
 > • Matches the full URL including the query, in any order
 > • Works for fetch and XMLHttpRequest, and keeps working with DevTools closed
 > • Start from a real response with one click, then edit it
-> • The toolbar badge shows how many mocks are on; pause them all in one click
+> • The toolbar badge counts active ones; pause them all in one click
 >
 > SYNC (OPTIONAL)
 > • Sign in to keep your workspace in one file in your own Google Drive and use it on other computers
 > • Only asks for your email and access to the file it creates (drive.file)
 >
 > PRIVATE BY DESIGN
-> • Asks for access to a site only when you first send to it or mock it
+> • Asks for access to a site only when you first send to it or use it for a mock
 > • No servers, no analytics, no ads; nothing is sent to the developer
 > • Free and open source (MIT): https://github.com/HDuy-Dev/fetchwing
 >
@@ -92,11 +92,12 @@ Detailed description:
 ## Icons and store images
 
 - `assets/icons/icon.svg` is the source. `npm run images` renders `assets/icons/icon-{16,32,48,128}.png` and `docs/store/promo-small.png` (from `docs/store/src/promo-small.html`) with Google Chrome. Override the path with `CHROME=...`.
-- Screenshots are taken from the real panel with sample data at 1280×800:
-  1. a request with a JSON response (dark);
-  2. the mock pane with a mock on (dark);
-  3. the Mocks section;
-  4. the light theme.
+- Screenshots show the real panel with sample data, captured at 2× and placed in a 1280×800 frame: a headline, a subline and the panel in a rounded, shadowed box. The headlines, in order:
+  1. "Paste cURL, hit Send", with a "Copied as cURL" card;
+  2. "Organize every request", with ⌘K search open;
+  3. "Mock any API response", in the side-by-side layout;
+  4. "Mocks keep working with DevTools closed", with the Mocks list, the Pause all menu, and a small browser card showing the badge;
+  5. "Synced to your own Google Drive", in the light theme with the sync menu open and a card for the "Fetchwing data" file (text only, no Google logo).
 
   They are saved to `docs/store/screenshot-<n>.png`.
 - After changing the icon, copy `assets/icons/icon-128.png` to `docs/icon-128.png` for the website.
