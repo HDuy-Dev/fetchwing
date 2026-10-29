@@ -1,15 +1,27 @@
 {
   "manifest_version": 3,
   "name": "Fetchwing",
-  "version": "0.1.0",
-  "description": "A lightweight API client in DevTools: paste cURL, send requests, organise collections and mock responses for web pages.",
+  "version": "1.0.0",
+  "description": "API client in DevTools: paste cURL, send requests, organise collections, and mock responses for web pages.",
+  "homepage_url": "https://hduy-dev.github.io/fetchwing/",
+  "icons": {
+    "16": "assets/icons/icon-16.png",
+    "32": "assets/icons/icon-32.png",
+    "48": "assets/icons/icon-48.png",
+    "128": "assets/icons/icon-128.png"
+  },
   "devtools_page": "src/devtools.html",
   "background": {
     "service_worker": "src/background.js",
     "type": "module"
   },
   "action": {
-    "default_title": "Fetchwing"
+    "default_title": "Fetchwing",
+    "default_icon": {
+      "16": "assets/icons/icon-16.png",
+      "32": "assets/icons/icon-32.png",
+      "48": "assets/icons/icon-48.png"
+    }
   },
   "permissions": [
     "storage",

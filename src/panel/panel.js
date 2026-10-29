@@ -468,7 +468,7 @@ $('syncBtn').addEventListener('click', e => {
   const signIn = forceConsent => syncCall({ type: 'syncSignIn', forceConsent });
   const items = [];
   if (st.state === 'off' || !st.email) {
-    items.push({ label: 'Sign in with Google', icon: 'cloud', action: () => signIn(false) });
+    items.push({ label: 'Sync with Google Drive', icon: 'cloud', action: () => signIn(false) });
   } else {
     items.push({ label: st.email, disabled: true, action: () => {} });
     if (st.state === 'drive') items.push({ label: 'Allow Drive access', icon: 'cloud', action: () => signIn(true) });
