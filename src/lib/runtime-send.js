@@ -4,7 +4,7 @@
 
 export const GONE_ERROR = 'Fetchwing was reloaded. Close and reopen DevTools to keep using it.';
 
-const isGone = err => /Extension context invalidated/i.test(String(err?.message ?? err));
+export const isGone = err => /Extension context invalidated/i.test(String(err?.message ?? err));
 
 export function createSend({ sendMessage, onGone }) {
   let reported = false;

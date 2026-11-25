@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createSend, GONE_ERROR } from '../src/lib/runtime-send.js';
+import { createSend, GONE_ERROR, isGone } from '../src/lib/runtime-send.js';
 
 test('passes replies through', async () => {
   const send = createSend({ sendMessage: async m => ({ ok: true, echo: m.type }), onGone: () => assert.fail('not gone') });
@@ -32,4 +32,10 @@ test('other failures become an error reply without the reload notice', async () 
 test('a missing reply becomes an error reply', async () => {
   const send = createSend({ sendMessage: async () => undefined, onGone: () => {} });
   assert.deepEqual(await send({}), { ok: false, error: 'Could not reach Fetchwing.' });
+});
+
+test('isGone recognises a reloaded extension', () => {
+  assert.equal(isGone(new Error('Extension context invalidated.')), true);
+  assert.equal(isGone(new Error('Could not establish connection.')), false);
+  assert.equal(isGone(undefined), false);
 });

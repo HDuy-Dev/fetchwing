@@ -17,6 +17,7 @@ import { el, icon, iconButton, toast, showMenu, openDialog } from './ui.js';
 
 const $ = id => document.getElementById(id);
 import { send } from './runtime.js';
+import { GONE_ERROR } from '../lib/runtime-send.js';
 const store = {
   get(key, fallback) { try { return JSON.parse(localStorage.getItem(`fw.${key}`)) ?? fallback; } catch { return fallback; } },
   set(key, value) { try { localStorage.setItem(`fw.${key}`, JSON.stringify(value)); } catch {} },
@@ -327,6 +328,7 @@ async function sendActive() {
     toast('Allow access in the window that opened, then Send again.', 5000);
     return;
   }
+  if (access === 'gone') return fail('Fetchwing was reloaded', GONE_ERROR);
   if (access === 'denied') return fail('No access', `Fetchwing needs permission to reach ${origin}`);
   state.editor?.flush();
   state.responses.set(item.id, { loading: true, startedAt: Date.now() });
