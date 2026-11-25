@@ -17,14 +17,24 @@
     <span>Mocks are not running on <b id="bannerSite"></b></span>
     <button type="button" class="btn push" id="enableHere">Enable here</button>
   </div>
+  <label class="search" id="searchBox" hidden>
+    <span id="searchIcon"></span>
+    <input type="search" id="search" placeholder="Search requests" aria-label="Search requests" autocomplete="off" spellcheck="false">
+    <button type="button" class="clear" id="clearSearch" aria-label="Clear search" hidden></button>
+  </label>
   <main>
     <ul id="list" aria-label="Requests"></ul>
+    <div class="nomatch" id="noMatch" hidden>
+      <p class="title" id="noMatchTitle"></p>
+      <p>Search looks in names, URLs, methods and folders.</p>
+      <button type="button" class="btn" id="noMatchClear">Clear search</button>
+    </div>
     <div class="empty" id="empty" hidden>
       <p class="title">No requests yet</p>
       <p>Open DevTools → Fetchwing and paste a cURL command to add one.</p>
     </div>
   </main>
-  <footer id="footer" hidden></footer>
+  <footer id="footer" aria-live="polite" hidden></footer>
   <script type="module" src="popup.js"></script>
 </body>
 </html>

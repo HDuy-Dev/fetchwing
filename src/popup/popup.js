@@ -1,6 +1,6 @@
 // Toolbar popup: switch mocks on and off. Reads and writes go through the background worker.
 
-import { popupView, siteStep } from '../lib/popup-model.js';
+import { popupView, siteStep, filterRows, matchRanges } from '../lib/popup-model.js';
 import { grantPath } from '../lib/grant-follow-up.js';
 import { el, icon } from '../panel/ui.js';
 
@@ -11,6 +11,20 @@ const $ = id => document.getElementById(id);
 const rows = new Map(); // mock id -> row, kept so updates don't drop focus or scroll
 let context = { mockSites: [], tabOrigin: null, hasAccess: false };
 let latestRead = 0;
+let lastView = null;
+let query = '';
+
+// Text with the query's matches wrapped in <mark>, built from text nodes only.
+function highlight(node, text, q) {
+  const parts = [];
+  let at = 0;
+  for (const [start, end] of matchRanges(text, q)) {
+    parts.push(text.slice(at, start), el('mark', {}, text.slice(start, end)));
+    at = end;
+  }
+  parts.push(text.slice(at));
+  node.replaceChildren(...parts.filter(p => p !== ''));
+}
 
 async function send(msg) {
   const res = await chrome.runtime.sendMessage(msg).catch(() => undefined);
@@ -44,6 +58,7 @@ function createRow(id) {
     method: el('span'),
     name: el('span', { class: 'name' }),
     url: el('span'),
+    pathText: el('span'),
     status: el('span'),
     input: el('input', { type: 'checkbox', class: 'switch', role: 'switch' }),
     error: el('div', { class: 'error', role: 'alert', hidden: true }),
@@ -51,7 +66,7 @@ function createRow(id) {
     enabled: false,
   };
   row.node = el('li', {},
-    el('label', { class: 'row' }, row.method, el('span', { class: 'info' }, row.name, row.url), row.status, row.input),
+    el('label', { class: 'row' }, row.method, el('span', { class: 'info' }, row.name, row.url, row.path = el('span', { class: 'path' }, icon('folder'), row.pathText)), row.status, row.input),
     row.error);
   row.input.addEventListener('change', () => toggle(id, row.input.checked));
   return row;
@@ -63,9 +78,12 @@ function paintRow(row, data) {
     : !data.url.trim() ? 'Not running · No URL' : null;
   row.method.className = `m ${data.method}`;
   row.method.textContent = data.method;
-  row.name.textContent = data.name;
+  highlight(row.name, data.name, query);
   row.url.className = problem ? 'url warn' : 'url';
-  row.url.textContent = problem ?? data.url;
+  if (problem) row.url.textContent = problem;
+  else highlight(row.url, data.url, query);
+  row.path.hidden = !query.trim() || !data.path;
+  highlight(row.pathText, data.path, query);
   row.status.className = data.status >= 400 ? 'status bad' : 'status';
   row.status.textContent = String(data.status);
   row.input.setAttribute('aria-label', `Mock ${data.method} ${data.name}, ${data.url}, status ${data.status}${problem ? `, ${problem}` : ''}`);
@@ -74,6 +92,7 @@ function paintRow(row, data) {
 }
 
 function paint(view) {
+  lastView = view;
   const count = $('count');
   count.textContent = view.rows.length ? `${view.liveCount} on${view.idleCount ? ` · ${view.idleCount} not running` : ''}` : '';
   count.classList.toggle('on', view.liveCount + view.idleCount > 0);
@@ -87,17 +106,26 @@ function paint(view) {
   for (const [id, row] of rows) {
     if (!ids.has(id)) { row.node.remove(); rows.delete(id); }
   }
+  const shown = new Set(filterRows(view.rows, query).map(r => r.id));
   view.rows.forEach((data, index) => {
     if (!rows.has(data.id)) rows.set(data.id, createRow(data.id));
     const row = rows.get(data.id);
     paintRow(row, data);
+    row.node.hidden = !shown.has(data.id);
     // Moving a node drops its focus, so only move one that is out of place.
     if (list.children[index] !== row.node) list.insertBefore(row.node, list.children[index] ?? null);
   });
 
+  const searching = Boolean(query.trim());
   $('empty').hidden = view.rows.length > 0;
+  $('searchBox').hidden = !view.rows.length;
+  $('clearSearch').hidden = !query;
+  $('noMatch').hidden = !view.rows.length || shown.size > 0;
+  $('noMatchTitle').textContent = `No requests match “${query.trim()}”`;
   $('footer').hidden = !view.rows.length;
-  $('footer').replaceChildren(view.siteActive ? 'Active on this site · Env ' : 'Env ', el('b', {}, view.envName));
+  $('footer').replaceChildren(
+    searching ? `${shown.size} of ${view.rows.length} requests · ` : '',
+    view.siteActive ? 'Active on this site · Env ' : 'Env ', el('b', {}, view.envName));
 }
 
 async function refresh() {
@@ -166,7 +194,27 @@ async function runFromHeader(button, action) {
   await refresh();
 }
 
+function setQuery(value) {
+  query = value;
+  $('search').value = value;
+  if (lastView) paint(lastView);
+}
+
+function clearSearch() {
+  setQuery('');
+  $('search').focus();
+}
+
 $('mark').append(icon('logo'));
+$('searchIcon').replaceWith(icon('search'));
+$('clearSearch').append(icon('x'));
+$('search').addEventListener('input', e => setQuery(e.target.value));
+$('search').addEventListener('keydown', e => {
+  // With text in the box, Esc clears it instead of closing the popup.
+  if (e.key === 'Escape' && query) { e.preventDefault(); e.stopPropagation(); clearSearch(); }
+});
+$('clearSearch').addEventListener('click', e => { e.preventDefault(); clearSearch(); });
+$('noMatchClear').addEventListener('click', clearSearch);
 $('pauseAll').append(icon('pause'), 'Pause all');
 $('pauseAll').addEventListener('click', e => runFromHeader(e.currentTarget, () => mutate({ type: 'disableAllMocks' })));
 $('enableHere').addEventListener('click', e => runFromHeader(e.currentTarget, () => enableSite()));
@@ -174,4 +222,4 @@ $('enableHere').addEventListener('click', e => runFromHeader(e.currentTarget, ()
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area === 'local' && (changes.workspace || changes.mockSites)) refresh();
 });
-refresh();
+refresh().then(() => { if (!$('searchBox').hidden) $('search').focus(); });
