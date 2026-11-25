@@ -5,7 +5,7 @@ import { unknownSiteNotice } from '../lib/editor-window.js';
 import { ensureOrigin } from './permissions.js';
 import { prettyBody } from './response-view.js';
 import { parseJson, renderJsonView } from './json-view.js';
-import { editorText, replaceEmbedded, pathLabel } from '../lib/json-text.js';
+import { editorText, replaceEmbedded, unpackBody, packBody, pathLabel } from '../lib/json-text.js';
 
 const DROP_HEADERS = new Set(['content-length', 'content-encoding', 'transfer-encoding', 'connection', 'keep-alive', 'set-cookie', 'date']);
 
@@ -43,7 +43,7 @@ export async function setMockOn(id, enable, state) {
 }
 
 export function renderMockEditor(pane, item, state) {
-  // Rebuilding would lose the caret, or a string being edited; only refresh the switch.
+  // Rebuilding would lose the caret, or an edit not yet saved; only refresh the switch.
   if (current?.id === item.id && (pane.contains(document.activeElement) || current.holdsEdit())) {
     current.refresh(item, state);
     return;
@@ -57,20 +57,21 @@ export function renderMockEditor(pane, item, state) {
   const site = el('span', { class: 'hint mono ml-auto' });
   const errorEl = el('div', { class: 'mock-error', role: 'alert', hidden: true });
 
-  // Set while one JSON string of the body is being edited:
-  // { path, line, startText }
-  let stringEdit = null;
+  // Set while the body, or one JSON string in it, is edited and saved only on Done:
+  // { path (null for the whole body), line, startText, base, changedOutside }
+  let openEdit = null;
   const stored = structuredClone(draft);
   const inputs = {}; // set once the fields below are built
 
   const refresh = (it, st) => {
-    // The mock can change under an open string edit (sync, "Mock this response"):
+    // The mock can change under an open edit (sync, "Mock this response"):
     // take the new values, so Done applies onto them instead of bringing old ones back.
     // A field still waiting to be saved is newer than what is stored, so it stays.
     for (const key of Object.keys(stored)) {
       if (JSON.stringify(it.mock[key]) === JSON.stringify(stored[key])) continue;
       stored[key] = structuredClone(it.mock[key]);
-      if (!stringEdit || save.isPending()) continue;
+      if (key === 'body' && openEdit && it.mock.body !== openEdit.base) openEdit.changedOutside = true;
+      if (!openEdit || save.isPending()) continue;
       draft[key] = structuredClone(it.mock[key]);
       if (key === 'headers') inputs.headers.value = ctHeader()?.value ?? '';
       else if (inputs[key]) inputs[key].value = draft[key];
@@ -116,22 +117,31 @@ export function renderMockEditor(pane, item, state) {
   const editBtn = iconButton('edit', 'Edit body', null, { 'aria-pressed': 'false' });
   const viewBox = el('div', { 'aria-label': 'Mock body' });
   const area = el('textarea', { class: 'mock-text', spellcheck: 'false', 'aria-label': 'Mock body', placeholder: '{ "message": "mocked" }' });
-  area.addEventListener('input', () => { if (!stringEdit) { draft.body = area.value; save(); } });
+  area.addEventListener('input', () => {
+    if (openEdit) return showEditError(null); // a warning no longer describes the text
+    draft.body = area.value;
+    save();
+  });
   const barTitle = el('span', { class: 'hint edit-title' }, 'Body');
   const cancelBtn = el('button', { type: 'button', class: 'btn', hidden: true }, 'Cancel');
   const doneBtn = el('button', { type: 'button', class: 'btn', hidden: true }, 'Done');
   const editError = el('div', { class: 'mock-error edit-error', role: 'alert', hidden: true });
-  const showEditError = msg => { editError.textContent = msg ?? ''; editError.hidden = !msg; };
+  const forceBtn = el('button', { type: 'button', class: 'btn', hidden: true }, 'Save anyway');
+  const showEditError = (msg, { canForce = false } = {}) => {
+    editError.textContent = msg ?? '';
+    editError.hidden = !msg;
+    forceBtn.hidden = !canForce;
+  };
   let editing = false;
   const drawBody = () => {
-    const label = stringEdit ? `Editing: ${pathLabel(stringEdit.path)}` : 'Body';
+    const label = openEdit ? `Editing: ${openEdit.path ? pathLabel(openEdit.path) : 'body'}` : 'Body';
     barTitle.textContent = barTitle.title = label;
-    area.setAttribute('aria-label', stringEdit ? label : 'Mock body');
-    cancelBtn.hidden = doneBtn.hidden = !stringEdit;
-    if (stringEdit) {
+    area.setAttribute('aria-label', openEdit ? label : 'Mock body');
+    cancelBtn.hidden = doneBtn.hidden = !openEdit;
+    if (openEdit) {
       viewBox.hidden = foldBtn.hidden = editBtn.hidden = true;
       area.hidden = false;
-      area.value = stringEdit.startText;
+      area.value = openEdit.startText;
       return;
     }
     const value = parseJson(draft.body);
@@ -142,37 +152,50 @@ export function renderMockEditor(pane, item, state) {
     editBtn.setAttribute('aria-pressed', String(editing));
     editBtn.hidden = !value && !editing;
     if (asText) area.value = draft.body;
-    else renderJsonView(viewBox, value, { toggleButton: foldBtn, onEditString: startStringEdit });
+    else renderJsonView(viewBox, value, { toggleButton: foldBtn, onEditString: startEdit });
   };
-  const startStringEdit = (path, line) => {
+  const startEdit = (path, line = null) => {
     if (save.isPending()) save.flush();
-    stringEdit = { path, line, startText: editorText(draft.body, path) };
+    const startText = path ? editorText(draft.body, path) : unpackBody(draft.body);
+    openEdit = { path, line, startText, base: draft.body, changedOutside: false };
     drawBody();
     area.focus();
     area.setSelectionRange(0, 0);
     area.scrollTop = 0;
   };
-  const endStringEdit = () => {
-    const { line } = stringEdit;
-    stringEdit = null;
+  const endEdit = () => {
+    const { line } = openEdit;
+    openEdit = null;
     showEditError(null);
     drawBody();
-    // The button is gone if its block is folded away or the body changed shape.
-    (viewBox.querySelector(`[data-edit="${line}"]`) ?? (editBtn.hidden ? area : editBtn)).focus();
+    // A string's button is gone if its block is folded away or the body changed shape.
+    const stringBtn = line === null ? null : viewBox.querySelector(`[data-edit="${line}"]`);
+    (stringBtn ?? (editBtn.hidden ? area : editBtn)).focus();
   };
-  cancelBtn.addEventListener('click', endStringEdit);
-  doneBtn.addEventListener('click', () => {
-    if (area.value !== stringEdit.startText) {
-      const result = replaceEmbedded(draft.body, stringEdit.path, area.value);
-      if (result.error) return showEditError(result.error);
-      if (result.body !== draft.body) {
-        draft.body = result.body;
-        save.flush();
-      }
+  const finishEdit = ({ force = false } = {}) => {
+    if (area.value === openEdit.startText) return endEdit();
+    const { path, base, changedOutside } = openEdit;
+    // One string is put into the latest body; a whole body is rebuilt from the one it came from.
+    const result = path ? replaceEmbedded(draft.body, path, area.value) : packBody(base, area.value);
+    if (result.error) return showEditError(result.error);
+    if (!path && !force) {
+      const doubts = [];
+      if (changedOutside) doubts.push('The mock body changed while you were editing; saving replaces it.');
+      if (result.warnings.length) doubts.push(`These JSON strings may not be saved as strings: ${result.warnings.join(', ')}`);
+      if (doubts.length) return showEditError(doubts.join(' '), { canForce: true });
     }
-    endStringEdit();
-  });
+    if (result.body !== draft.body) {
+      draft.body = result.body;
+      save.flush();
+    }
+    endEdit();
+  };
+  cancelBtn.addEventListener('click', endEdit);
+  doneBtn.addEventListener('click', () => finishEdit());
+  forceBtn.addEventListener('click', () => finishEdit({ force: true }));
   editBtn.addEventListener('click', () => {
+    // An object or array body is edited formatted, with its JSON strings opened up.
+    if (!editing && parseJson(draft.body)) return startEdit(null);
     editing = !editing;
     drawBody();
     if (editing) area.focus();
@@ -192,9 +215,9 @@ export function renderMockEditor(pane, item, state) {
       el('label', { class: 'field grow' }, 'Content-Type', ctInput)),
     el('div', { class: 'editor' },
       el('div', { class: 'editor-bar' }, barTitle, el('div', { class: 'tool-icons ml-auto' }, foldBtn, editBtn, cancelBtn, doneBtn)),
-      editError, viewBox, area),
+      el('div', { class: 'edit-alert' }, editError, forceBtn), viewBox, area),
   );
   drawBody();
   refresh(item, state);
-  current = { id: item.id, refresh, holdsEdit: () => stringEdit !== null && pane.contains(area) };
+  current = { id: item.id, refresh, holdsEdit: () => openEdit !== null && pane.contains(area) };
 }

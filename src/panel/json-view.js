@@ -24,7 +24,7 @@ function embeddedHtml(line, index, editable) {
   const tag = '<span class="jtag">JSON string</span>';
   if (!editable) return tag;
   const label = attr(`Edit JSON string ${line.embedded.at(-1)}`);
-  return `${tag}<button type="button" class="jedit" data-edit="${index}" aria-label="${label}" title="${label}">${icon('edit').outerHTML}</button>`;
+  return `${tag}<button type="button" class="jedit" data-edit="${index}" aria-label="${label}" title="${label}">${icon('edit').outerHTML}Edit</button>`;
 }
 
 const keyHtml = line => (line.key === null ? '' : `<span class="k">${escapeHtml(JSON.stringify(line.key))}</span>: `);
