@@ -162,11 +162,17 @@ function readTree(text, expand) {
   return read(0);
 }
 
-// Each [segment, node] under a node. Like JSON.parse, the last duplicate key wins.
+// segment -> node under a node, built once. Like JSON.parse, the last duplicate key wins.
+const childCache = new WeakMap();
+const NONE = new Map();
 function childrenOf(node) {
-  if (node.open === '[') return node.items.map((item, i) => [i, item]);
-  if (node.open === '{') return [...new Map(node.entries.map(e => [e.key, e.node]))];
-  return [];
+  if (!node.open) return NONE;
+  let map = childCache.get(node);
+  if (!map) {
+    map = new Map(node.open === '[' ? node.items.map((item, i) => [i, item]) : node.entries.map(e => [e.key, e.node]));
+    childCache.set(node, map);
+  }
+  return map;
 }
 
 // Compact text of a tree. `pack(node, path, text)` may turn a container into something else.
@@ -181,13 +187,7 @@ function write(node, pack, path = []) {
 const patternOf = path => path.map(s => (typeof s === 'number' ? ANY : s));
 const idOf = path => JSON.stringify(path);
 
-function nodeAt(tree, path) {
-  let node = tree;
-  for (const segment of path) {
-    node = node && childrenOf(node).find(([s]) => s === segment)?.[1];
-  }
-  return node;
-}
+const nodeAt = (tree, path) => path.reduce((node, segment) => node && childrenOf(node).get(segment), tree);
 
 // What the original held at each pattern: which strings were packed JSON, and
 // whether real objects sat at the same place.
@@ -213,22 +213,37 @@ function packedPlaces(tree) {
 }
 
 // How many places along `pattern` cannot take its next step, one count per step.
-function deadEnds(tree, pattern) {
+// A string typed or pasted where a packed one was is a value of its own: nothing
+// below it counts.
+function deadEnds(tree, pattern, places) {
   let nodes = [tree];
-  return pattern.map(segment => {
+  return pattern.map((segment, step) => {
+    const wasPacked = step > 0 && places.get(idOf(pattern.slice(0, step)))?.packed.length > 0;
     let dead = 0;
     nodes = nodes.flatMap(node => {
       if (node.open !== (segment === ANY ? '[' : '{')) {
-        dead++;
+        if (node.open || !wasPacked) dead++;
         return [];
       }
       if (segment === ANY) return node.items;
-      const child = childrenOf(node).find(([s]) => s === segment)?.[1];
+      const child = childrenOf(node).get(segment);
       if (!child) dead++;
       return child ? [child] : [];
     });
     return dead;
   });
+}
+
+// Every pattern at which a tree has an object or array.
+function containerPatterns(tree) {
+  const found = new Set();
+  const visit = (node, pattern) => {
+    if (!node.open) return;
+    found.add(idOf(pattern));
+    for (const [segment, child] of childrenOf(node)) visit(child, [...pattern, typeof segment === 'number' ? ANY : segment]);
+  };
+  visit(tree, []);
+  return found;
 }
 
 const patternLabel = pattern => pathLabel(pattern.map(s => (s === ANY ? 0 : s)))
@@ -251,16 +266,23 @@ export function packBody(body, edited) {
   const after = readTree(edited, false);
   const places = packedPlaces(before);
   const warnings = [];
+  const known = containerPatterns(before);
+  const hasNewPlace = [...containerPatterns(after)].some(id => !known.has(id));
+  const written = new Map(); // outer arrays of mixed places, serialised once
+  const writeOnce = node => written.get(node) ?? written.set(node, write(node)).get(node);
 
   for (const { pattern, packed, real } of places.values()) {
     if (!packed.length) continue;
-    const was = deadEnds(before, pattern);
-    let unsure = deadEnds(after, pattern).some((count, i) => count > was[i]);
+    const was = deadEnds(before, pattern, places);
+    // More places miss a step than before, or one misses it while an object turned
+    // up somewhere new (a rename that another edit would hide from the count).
+    let unsure = deadEnds(after, pattern, places).some((count, i) => (
+      count > was[i] || (hasNewPlace && count > 0 && pattern[i] !== ANY)));
     // Strings and real objects side by side: only the position says which is which.
     if (real && pattern.includes(ANY)) {
       const array = pattern.slice(0, pattern.indexOf(ANY));
       const now = nodeAt(after, array);
-      unsure ||= !now || write(nodeAt(before, array)) !== write(now);
+      unsure ||= !now || writeOnce(nodeAt(before, array)) !== writeOnce(now);
     }
     if (unsure) warnings.push(patternLabel(pattern));
   }

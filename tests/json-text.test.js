@@ -150,3 +150,32 @@ test('packBody rejects invalid JSON', () => {
   assert.match(res.error, /^Invalid JSON/);
   assert.equal(res.body, undefined);
 });
+
+test('a rename still warns when another edit hides it', () => {
+  const warned = (before, after) => packBody(J(before), J(after)).warnings;
+  const optional = { list: [{ id: 1, meta: '{"a":1}' }, { id: 2 }] };
+  assert.deepEqual(warned(optional, { list: [{ id: 1, metadata: { a: 1 } }] }), ['list[*].meta']);
+  assert.deepEqual(warned(optional, { list: [{ id: 1, metadata: { a: 1 } }, { id: 2, meta: { b: 1 } }] }), ['list[*].meta']);
+  const deep = { list: [{ m: { d: '[1]' } }, { id: 2 }] };
+  assert.deepEqual(warned(deep, { list: [{ q: { d: [1] } }] }), ['list[*].m.d']);
+});
+
+test('pasting already-packed nested layers, or typing a plain string, does not warn', () => {
+  const layers = n => J({ a: J({ b: J({ c: n }) }) });
+  assert.deepEqual(packBody(layers(1), layers(2)), { body: layers(2), warnings: [] });
+  assert.deepEqual(packBody(layers(1), J({ a: 'hello' })), { body: J({ a: 'hello' }), warnings: [] });
+});
+
+test('many packed places stay fast', () => {
+  const many = Object.fromEntries(Array.from({ length: 10000 }, (_, i) => [`k${i}`, `{"n":${i}}`]));
+  const mixed = { list: Array.from({ length: 1000 }, () => Object.fromEntries(
+    Array.from({ length: 100 }, (_, i) => [`f${i}`, i % 2 ? '[1]' : 'x']))) };
+  mixed.list[0] = Object.fromEntries(Array.from({ length: 100 }, (_, i) => [`f${i}`, [2]]));
+  for (const value of [many, mixed]) {
+    const body = J(value);
+    const text = unpackBody(body);
+    const started = Date.now();
+    packBody(body, `${text} `);
+    assert.ok(Date.now() - started < 2000, `took ${Date.now() - started} ms`);
+  }
+});
