@@ -76,3 +76,17 @@ test('siteStep decides what turning a mock on needs', () => {
   assert.equal(siteStep({ origin: o, mockSites: [o], hasAccess: false }), 'grant');
   assert.equal(siteStep({ origin: o, mockSites: [], hasAccess: false }), 'grant');
 });
+
+test('a request whose folder was deleted by sync stays listed, so its running mock can be seen and turned off', () => {
+  const w = workspace();
+  const collection = children(w.ws, null)[0].id;
+  w.run({ type: 'addItem', id: 'f', itemType: 'folder', parentId: collection, name: 'Folder' });
+  w.run({ type: 'addItem', id: 'o', itemType: 'request', parentId: 'f', name: 'Orphan', fields: { url: 'http://x.test/o' } });
+  w.run({ type: 'setMockEnabled', id: 'o', enabled: true });
+  // Sync can keep a newer request while its folder arrives deleted from another device.
+  const ws = { ...w.ws, items: { ...w.ws.items, f: { ...w.ws.items.f, deleted: true } } };
+  const v = popupView(ws, { mockSites: [], tabOrigin: null, hasAccess: false });
+  assert.deepEqual(v.rows.map(r => r.id), ['a', 'c', 'd', 'o']);
+  assert.equal(v.liveCount, 1);
+  assert.equal(v.idleCount, 1);
+});

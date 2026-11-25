@@ -1,6 +1,6 @@
 // What the toolbar popup shows, and what turning a mock on needs for the current tab.
 
-import { children } from './model.js';
+import { children, liveRequests } from './model.js';
 import { deriveActiveMocks } from './mocks.js';
 import { envVars, resolveVars } from './vars.js';
 
@@ -13,13 +13,20 @@ export function siteStep({ origin, mockSites, hasAccess }) {
   return mockSites.includes(origin) ? 'none' : 'add';
 }
 
-// Every live request, in the order the collection tree shows them.
-function requestsInTreeOrder(ws, parentId = null, out = []) {
-  for (const item of children(ws, parentId)) {
-    if (item.type === 'request') out.push(item);
-    else requestsInTreeOrder(ws, item.id, out);
-  }
-  return out;
+// Every live request, in the order the collection tree shows them. Requests the tree
+// can't reach (sync can delete a folder another device just added to) go last, since
+// their mocks still run.
+function requestsInTreeOrder(ws) {
+  const out = [];
+  const walk = parentId => {
+    for (const item of children(ws, parentId)) {
+      if (item.type === 'request') out.push(item);
+      else walk(item.id);
+    }
+  };
+  walk(null);
+  const seen = new Set(out.map(r => r.id));
+  return [...out, ...liveRequests(ws).filter(r => !seen.has(r.id))];
 }
 
 export function popupView(ws, { mockSites, tabOrigin, hasAccess }) {
