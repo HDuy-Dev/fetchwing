@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseEmbedded, formatJson, editorText, replaceEmbedded, pathLabel } from '../src/lib/json-text.js';
+import { parseEmbedded, formatJson, editorText, replaceEmbedded, pathLabel, unpackBody, packBody } from '../src/lib/json-text.js';
 
 const wrap = inner => JSON.stringify(inner);
 
@@ -69,4 +69,84 @@ test('rejects bad edits', () => {
 test('path labels', () => {
   assert.equal(pathLabel(['product_details']), 'product_details');
   assert.equal(pathLabel(['a', 0, 'phone-4', 'b']), 'a[0]["phone-4"].b');
+});
+
+const J = JSON.stringify;
+const edit = (body, from, to) => {
+  const text = unpackBody(body);
+  assert.ok(text.includes(from), from);
+  return packBody(body, text.replace(from, to));
+};
+
+test('unpackBody expands every layer and keeps number digits', () => {
+  const body = J({ d: `{"e":${J('[1]')},"id":12345678901234567890}`, s: '123' });
+  assert.equal(unpackBody(body), '{\n  "d": {\n    "e": [\n      1\n    ],\n    "id": 12345678901234567890\n  },\n  "s": "123"\n}');
+});
+
+test('packBody with no change returns the body as written', () => {
+  const body = `{ "d" :${J('{ "a":1 }')} }`;
+  assert.deepEqual(packBody(body, unpackBody(body)), { body, warnings: [] });
+});
+
+test('packBody packs changed strings and reuses untouched ones', () => {
+  const kept = '"{ \\"k\\" : \\"\\u00e9\\" }"';
+  const deep = `{"in":${J('{"n":1}')},"big":10000000000000000001}`;
+  const body = `{"keep":${kept},"d":${J(deep)},"x":1}`;
+  const res = edit(body, '"n": 1', '"n": 2');
+  assert.deepEqual(res.warnings, []);
+  assert.equal(res.body, body.replace(J(deep), J(deep.replace(J('{"n":1}'), J('{"n":2}')))));
+});
+
+test('packBody keeps one-line and multi-line styles', () => {
+  const body = J({ d: '{\n  "a": 1\n}' }, null, 2);
+  assert.equal(edit(body, '"a": 1', '"a": 2').body, J({ d: '{\n  "a": 2\n}' }, null, 2));
+});
+
+test('new, inserted and reordered array items are packed', () => {
+  const body = J({ list: [{ d: '{"n":1}' }, { d: '{"n":2}' }] });
+  const res = packBody(body, J({ list: [{ d: { n: 9 } }, { d: { n: 2 } }, { d: { n: 1 } }] }));
+  assert.deepEqual(res, { body: J({ list: [{ d: '{"n":9}' }, { d: '{"n":2}' }, { d: '{"n":1}' }] }), warnings: [] });
+});
+
+test('removing an array item or emptying the array does not warn', () => {
+  const body = J({ list: [{ d: '{"n":1}' }, { d: '{"n":2}' }] });
+  assert.deepEqual(packBody(body, J({ list: [{ d: { n: 2 } }] })).warnings, []);
+  assert.deepEqual(packBody(body, J({ list: [] })).warnings, []);
+});
+
+test('renamed, moved or deleted packed fields warn', () => {
+  const body = J({ a: { d: '{"n":1}' }, list: [{ m: { d: '[1]' } }] });
+  const text = unpackBody(body);
+  assert.deepEqual(packBody(body, text.replace('"d"', '"e"')).warnings, ['a.d']);
+  assert.deepEqual(packBody(body, text.replace('"a"', '"z"')).warnings, ['a.d']);
+  assert.deepEqual(packBody(body, text.replace('"list"', '"rows"')).warnings, ['list[*].m.d']);
+  assert.deepEqual(packBody(body, text.replace('"m"', '"q"')).warnings, ['list[*].m.d']);
+});
+
+test('a packed field typed as another value is kept, already-string values stay', () => {
+  const body = J({ d: '{"n":1}', e: '{"n":2}' });
+  const res = packBody(body, J({ d: null, e: '{"n":3}' }));
+  assert.deepEqual(res, { body: J({ d: null, e: '{"n":3}' }), warnings: [] });
+});
+
+test('mixed arrays pack by position and warn only when the array changed', () => {
+  const list = [{ d: '{"n":1}' }, { d: { n: 2 } }];
+  const swapped = packBody(J({ list }), J({ list: [{ d: { n: 2 } }, { d: { n: 1 } }] }));
+  assert.deepEqual(swapped.warnings, ['list[*].d']);
+  const outside = packBody(J({ list, x: 1 }), J({ list: [{ d: { n: 1 } }, { d: { n: 2 } }], x: 2 }));
+  assert.deepEqual(outside, { body: J({ list, x: 2 }), warnings: [] });
+});
+
+test('packBody handles a root array, __proto__ and duplicate keys', () => {
+  assert.equal(edit(J(['{"n":1}']), '"n": 1', '"n": 2').body, J(['{"n":2}']));
+  const proto = `{"__proto__":${J('{"n":1}')}}`;
+  assert.equal(edit(proto, '"n": 1', '"n": 2').body, `{"__proto__":${J('{"n":2}')}}`);
+  const dup = `{"d":1,"d":${J('{"n":1}')}}`;
+  assert.deepEqual(edit(dup, '"n": 1', '"n": 2'), { body: `{"d":1,"d":${J('{"n":2}')}}`, warnings: [] });
+});
+
+test('packBody rejects invalid JSON', () => {
+  const res = packBody(J({ d: '[1]' }), '{"d":');
+  assert.match(res.error, /^Invalid JSON/);
+  assert.equal(res.body, undefined);
 });
