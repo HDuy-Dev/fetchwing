@@ -58,3 +58,17 @@ test('folds deep when large', () => {
   assert.equal(collapsed.has(lines[0].block), false, 'root never collapses');
   assert.deepEqual(initialCollapsed(jsonLines({ a: 1 }), { maxVisible: 2000 }), new Set());
 });
+
+test('expands JSON held in strings and records the path', () => {
+  const lines = jsonLines({ list: [{ d: JSON.stringify({ e: '[1]' }) }], n: '123', x: '{}' });
+  const embedded = lines.filter(l => l.embedded);
+  assert.deepEqual(embedded.map(l => l.embedded), [['list', 0, 'd'], ['list', 0, 'd', 'e']]);
+  assert.equal(embedded[0].kind, 'open');
+  assert.equal(lines[embedded[0].end].text, '}');
+  assert.equal(lines.find(l => l.key === 'n').text, '"123"');
+  assert.equal(lines.find(l => l.key === 'x').text, '"{}"');
+});
+
+test('a root string is not expanded', () => {
+  assert.equal(jsonLines('{"a":1}').length, 1);
+});
