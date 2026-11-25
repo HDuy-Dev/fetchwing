@@ -239,6 +239,8 @@ table.kv tr:hover .row-x, table.kv tr:focus-within .row-x { opacity: 1; }
 .editor { flex: 1; min-height: 120px; display: flex; flex-direction: column; border: 1px solid var(--control); border-radius: var(--r-lg); background: var(--bg); overflow: hidden; }
 .editor-bar { display: flex; align-items: center; padding: 2px 4px 2px 12px; border-bottom: 1px solid var(--divider); flex-shrink: 0; }
 .editor .json { padding-top: 4px; }
+.edit-title { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; padding-right: 8px; }
+.edit-error { padding: 4px 12px; flex-shrink: 0; }
 .mock-text { flex: 1; min-height: 0; border: 0; resize: none; background: transparent; padding: 8px 12px; font: 12.5px/1.6 var(--mono); outline: none; }
 .mock-headers { display: flex; flex-direction: column; gap: 4px; }
 

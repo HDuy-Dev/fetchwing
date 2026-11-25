@@ -41,7 +41,7 @@ export function parseJson(text) {
 
 // Renders `value` into `container`. `toggleButton` (optional) becomes a
 // Collapse all ⇄ Expand all switch kept in step with the per-block arrows.
-// `onEditString(path)` (optional) adds an edit button to each string holding JSON.
+// `onEditString(path, lineIndex)` (optional) adds an edit button to each string holding JSON.
 export function renderJsonView(container, value, { toggleButton, onEditString } = {}) {
   const lines = jsonLines(value);
   const collapsed = initialCollapsed(lines);
@@ -90,7 +90,7 @@ export function renderJsonView(container, value, { toggleButton, onEditString } 
 
   container.onclick = e => {
     const edit = e.target.closest('[data-edit]');
-    if (edit) return onEditString(lines[Number(edit.dataset.edit)].embedded);
+    if (edit) return onEditString(lines[Number(edit.dataset.edit)].embedded, Number(edit.dataset.edit));
     const target = e.target.closest('[data-block]');
     if (!target) return;
     const block = Number(target.dataset.block);
