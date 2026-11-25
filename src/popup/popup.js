@@ -123,9 +123,10 @@ function paint(view) {
   $('noMatch').hidden = !view.rows.length || shown.size > 0;
   $('noMatchTitle').textContent = `No requests match “${query.trim()}”`;
   $('footer').hidden = !view.rows.length;
-  $('footer').replaceChildren(
-    searching ? `${shown.size} of ${view.rows.length} requests · ` : '',
-    view.siteActive ? 'Active on this site · Env ' : 'Env ', el('b', {}, view.envName));
+  // Only the result count is live, and only when it changes, so screen readers aren't re-read the footer.
+  const resultText = searching ? `${shown.size} of ${view.rows.length} requests · ` : '';
+  if ($('resultCount').textContent !== resultText) $('resultCount').textContent = resultText;
+  $('footerEnv').replaceChildren(view.siteActive ? 'Active on this site · Env ' : 'Env ', el('b', {}, view.envName));
 }
 
 async function refresh() {
