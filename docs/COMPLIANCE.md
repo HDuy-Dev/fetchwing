@@ -45,6 +45,7 @@ Permission justifications (paste into the Privacy practices tab):
 | `clipboardRead` | The "Paste cURL" button reads the cURL command the user just copied from the Network tab. |
 | `identity` | Lets the user sign in with Google to sync their workspace to their own Google Drive. |
 | `alarms` | Runs a sync every 5 minutes while signed in, so edits from another computer arrive. |
+| `activeTab` | When the user clicks the toolbar icon, reads the current tab's address so a mock can be turned on for that site. |
 | Optional host `http://*/*`, `https://*/*` | Requested one site at a time, only when the user sends a request to that site or turns a mock on for it. Never requested at install. |
 | Host `www.googleapis.com` | Google Drive API: find, create, read and write the user's "Fetchwing data" file. |
 | Host `openidconnect.googleapis.com` | Read the signed-in account's email address to display it. |

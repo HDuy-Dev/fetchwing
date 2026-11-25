@@ -10,7 +10,7 @@ A lightweight API client that lives in Chrome DevTools. Paste a cURL command, se
 - **Send from the extension.** You get status, time, size, headers and a foldable JSON viewer. Cookies from the cURL command are sent too.
 - **Collections and folders** with drag and drop, open-request tabs and ⌘K / Ctrl+K search.
 - **Environments.** Use `{{variables}}` in URLs, headers and bodies. Variables marked *secret* stay on your device.
-- **Mocks.** Pages calling the same method and URL (query included, in any order) get the response you set: status, delay, headers and body. Mocks keep working with DevTools closed, and the toolbar badge shows how many are on.
+- **Mocks.** Pages calling the same method and URL (query included, in any order) get the response you set: status, delay, headers and body. Mocks keep working with DevTools closed, and the toolbar badge shows how many are on. Click the toolbar icon to switch mocks on and off without opening DevTools.
 - **Google Drive sync (optional).** Sign in to keep your workspace in one file in your own Drive and use it on other computers. The last edit wins per request, folder or environment.
 - Dark and light themes. Narrow and short DevTools layouts are supported.
 
