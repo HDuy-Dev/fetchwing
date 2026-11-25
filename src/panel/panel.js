@@ -16,7 +16,7 @@ import { ensureOrigin } from './permissions.js';
 import { el, icon, iconButton, toast, showMenu, openDialog } from './ui.js';
 
 const $ = id => document.getElementById(id);
-const send = msg => chrome.runtime.sendMessage(msg);
+import { send } from './runtime.js';
 const store = {
   get(key, fallback) { try { return JSON.parse(localStorage.getItem(`fw.${key}`)) ?? fallback; } catch { return fallback; } },
   set(key, value) { try { localStorage.setItem(`fw.${key}`, JSON.stringify(value)); } catch {} },
@@ -175,7 +175,7 @@ async function createItem(itemType, parentId, name, fields) {
   if (itemType !== 'collection' && !parentId) return null;
   const id = await addItem(itemType, parentId, name, fields);
   if (!id) return null;
-  state.ws = (await send({ type: 'getWorkspace' })).workspace;
+  state.ws = (await send({ type: 'getWorkspace' })).workspace ?? state.ws;
   if (parentId) expandPath(parentId);
   if (itemType !== 'request') state.expanded.add(id);
   store.set('expanded', [...state.expanded]);
@@ -294,7 +294,7 @@ async function importCurlText(text) {
     const id = await addItem('request', parentId, requestName(p.url), fieldsFrom(p));
     if (id) { added++; first ??= id; }
   }
-  state.ws = (await send({ type: 'getWorkspace' })).workspace;
+  state.ws = (await send({ type: 'getWorkspace' })).workspace ?? state.ws;
   expandPath(parentId);
   if (first) select(first);
   toast(skipped ? `Imported ${added}, skipped ${skipped}` : `Imported ${added}`, 4000);
@@ -348,7 +348,7 @@ async function addVariable(name) {
     const res = await mutate({ type: 'addEnvironment', id, name: 'Local' });
     if (!res.ok) return;
     await mutate({ type: 'setActiveEnv', id });
-    state.ws = (await send({ type: 'getWorkspace' })).workspace;
+    state.ws = (await send({ type: 'getWorkspace' })).workspace ?? state.ws;
   }
   openEnvironments(state, { addVar: name });
 }
@@ -545,7 +545,7 @@ function renderSide() {
     actions.append(iconButton('plus', 'New environment', async () => {
       const id = newId();
       const res = await mutate({ type: 'addEnvironment', id, name: 'New environment' });
-      if (res.ok) { state.ws = (await send({ type: 'getWorkspace' })).workspace; openEnvironments(state, { envId: id }); }
+      if (res.ok) { state.ws = (await send({ type: 'getWorkspace' })).workspace ?? state.ws; openEnvironments(state, { envId: id }); }
     }));
     const envs = liveEnvironments(state.ws);
     if (!envs.length) content.append(el('div', { class: 'side-empty' }, 'No environments yet.'));
@@ -663,6 +663,7 @@ chrome.devtools?.network?.onNavigated.addListener(url => {
 
 async function init() {
   const res = await send({ type: 'getWorkspace' });
+  if (!res.workspace) return;
   state.ws = res.workspace;
   state.mockSites = res.mockSites;
   state.inspectedOrigin = await inspectedOrigin();

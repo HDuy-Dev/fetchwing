@@ -15,7 +15,7 @@ export function mockFromResponse(r) {
   };
 }
 
-const send = msg => chrome.runtime.sendMessage(msg);
+import { send } from './runtime.js';
 const host = origin => origin.replace(/^https?:\/\//, '');
 let current = null; // { id, refresh(item, state) }
 
