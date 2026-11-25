@@ -161,3 +161,8 @@ test('a request left in a deleted folder has no folder path', () => {
   assert.deepEqual(filterRows(v.rows, 'gone'), []);
 });
 
+
+test('Greek final sigma matches either case', () => {
+  assert.deepEqual(matchRanges('ΟΔΟΣ', 'οδος'), [[0, 4]]);
+  assert.deepEqual(matchRanges('οδος', 'ΟΔΟΣ'), [[0, 4]]);
+});

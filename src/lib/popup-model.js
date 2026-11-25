@@ -79,7 +79,8 @@ export function popupView(ws, { mockSites, tabOrigin, hasAccess }) {
 
 // Lowercase one character at a time, keeping any whose lowercase form is longer
 // (like "İ"), so positions in the result match positions in the original.
-const fold = text => [...String(text ?? '')].map(c => { const l = c.toLowerCase(); return l.length === c.length ? l : c; }).join('');
+// Final sigma folds to σ, as "Σ" alone would.
+const fold = text => [...String(text ?? '')].map(c => { const l = c.toLowerCase(); return l.length === c.length ? (l === 'ς' ? 'σ' : l) : c; }).join('');
 const words = query => fold(query).split(/\s+/).filter(Boolean);
 
 // Rows where every word of the query appears in the method, name, url or path.
