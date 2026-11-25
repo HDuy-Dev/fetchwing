@@ -13,6 +13,7 @@ let context = { mockSites: [], tabOrigin: null, hasAccess: false };
 let latestRead = 0;
 let lastView = null;
 let query = '';
+let searchFocused = false;
 
 // Text with the query's matches wrapped in <mark>, built from text nodes only.
 function highlight(node, text, q) {
@@ -72,21 +73,20 @@ function createRow(id) {
   return row;
 }
 
-function paintRow(row, data) {
-  const problem = data.missing.length
-    ? `Not running · Unresolved variable${data.missing.length > 1 ? 's' : ''}: ${data.missing.join(', ')}`
-    : !data.url.trim() ? 'Not running · No URL' : null;
+function paintRow(row, data, shown) {
+  const { problem } = data;
+  // Hidden rows aren't highlighted: no point marking text nobody sees on each keystroke.
+  const q = shown ? query : '';
   row.method.className = `m ${data.method}`;
-  row.method.textContent = data.method;
-  highlight(row.name, data.name, query);
+  highlight(row.method, data.method, q);
+  highlight(row.name, data.name, q);
   row.url.className = problem ? 'url warn' : 'url';
-  if (problem) row.url.textContent = problem;
-  else highlight(row.url, data.url, query);
+  highlight(row.url, problem ?? data.url, q);
   row.path.hidden = !query.trim() || !data.path;
-  highlight(row.pathText, data.path, query);
+  highlight(row.pathText, data.path, q);
   row.status.className = data.status >= 400 ? 'status bad' : 'status';
   row.status.textContent = String(data.status);
-  row.input.setAttribute('aria-label', `Mock ${data.method} ${data.name}, ${data.url}, status ${data.status}${problem ? `, ${problem}` : ''}`);
+  row.input.setAttribute('aria-label', `Mock ${data.method} ${data.name}, ${data.url}${data.path ? `, in ${data.path}` : ''}, status ${data.status}${problem ? `, ${problem}` : ''}`);
   row.enabled = data.enabled;
   if (!row.busy) row.input.checked = data.enabled;
 }
@@ -110,8 +110,10 @@ function paint(view) {
   view.rows.forEach((data, index) => {
     if (!rows.has(data.id)) rows.set(data.id, createRow(data.id));
     const row = rows.get(data.id);
-    paintRow(row, data);
+    paintRow(row, data, shown.has(data.id));
     row.node.hidden = !shown.has(data.id);
+    // An outside change (a rename, a sync) can filter out the row being used; keep focus in the popup.
+    if (row.node.hidden && row.node.contains(document.activeElement)) $('search').focus();
     // Moving a node drops its focus, so only move one that is out of place.
     if (list.children[index] !== row.node) list.insertBefore(row.node, list.children[index] ?? null);
   });
@@ -119,6 +121,8 @@ function paint(view) {
   const searching = Boolean(query.trim());
   $('empty').hidden = view.rows.length > 0;
   $('searchBox').hidden = !view.rows.length;
+  // Focus the box the first time it appears, whichever refresh gets there first.
+  if (!searchFocused && view.rows.length) { searchFocused = true; $('search').focus(); }
   $('clearSearch').hidden = !query;
   $('noMatch').hidden = !view.rows.length || shown.size > 0;
   $('noMatchTitle').textContent = `No requests match “${query.trim()}”`;
@@ -214,7 +218,11 @@ $('search').addEventListener('keydown', e => {
   // With text in the box, Esc clears it instead of closing the popup.
   if (e.key === 'Escape' && query) { e.preventDefault(); e.stopPropagation(); clearSearch(); }
 });
-$('clearSearch').addEventListener('click', e => { e.preventDefault(); clearSearch(); });
+$('clearSearch').addEventListener('click', clearSearch);
+$('searchBox').addEventListener('mousedown', e => {
+  // The whole box acts as the input's hit area, as a label would.
+  if (e.target === e.currentTarget || e.target.closest('svg')) { e.preventDefault(); $('search').focus(); }
+});
 $('noMatchClear').addEventListener('click', clearSearch);
 $('pauseAll').append(icon('pause'), 'Pause all');
 $('pauseAll').addEventListener('click', e => runFromHeader(e.currentTarget, () => mutate({ type: 'disableAllMocks' })));
@@ -223,4 +231,4 @@ $('enableHere').addEventListener('click', e => runFromHeader(e.currentTarget, ()
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area === 'local' && (changes.workspace || changes.mockSites)) refresh();
 });
-refresh().then(() => { if (!$('searchBox').hidden) $('search').focus(); });
+refresh();
