@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { toRemote, isPristine, mergeRemote, REMOTE_VERSION } from '../src/lib/sync-merge.js';
-import { emptyWorkspace, newRequest } from '../src/lib/model.js';
+import { emptyWorkspace, newRequest, children } from '../src/lib/model.js';
 
 const item = (id, updatedAt, extra = {}) => ({
   id, type: 'request', parentId: 'c', order: 0, name: id, updatedAt, deleted: false, ...newRequest(), ...extra,
@@ -108,4 +108,55 @@ test('no remote file: upload everything', () => {
   assert.deepEqual(workspace, local);
   assert.notEqual(workspace, local);
   assert.equal(upload, true);
+});
+
+// Two devices that each added a request to their own default "My Collection".
+function deviceWithRequest(requestId, at = 5) {
+  const device = emptyWorkspace();
+  const [collectionId] = Object.keys(device.items);
+  device.items[requestId] = item(requestId, at, { parentId: collectionId });
+  return { device, collectionId };
+}
+const liveCollections = w => Object.values(w.items).filter(i => i.type === 'collection' && !i.deleted);
+
+test('default collections from two devices become one', () => {
+  const a = deviceWithRequest('ra');
+  const b = deviceWithRequest('rb', 6);
+  const { workspace, upload } = mergeRemote(a.device, toRemote(b.device), 100);
+  const [only, ...extra] = liveCollections(workspace);
+  assert.equal(extra.length, 0);
+  assert.equal(only.name, 'My Collection');
+  const moved = children(workspace, only.id);
+  assert.deepEqual(moved.map(i => i.id).sort(), ['ra', 'rb']);
+  assert.deepEqual(moved.map(i => i.order), [0, 1]);
+  assert.equal(upload, true);
+});
+
+test('both devices keep the same default collection and then settle', () => {
+  const a = deviceWithRequest('ra');
+  const b = deviceWithRequest('rb', 6);
+  const onA = mergeRemote(a.device, toRemote(b.device), 100).workspace;
+  const onB = mergeRemote(b.device, toRemote(a.device), 100).workspace;
+  assert.equal(liveCollections(onA)[0].id, liveCollections(onB)[0].id);
+  const again = mergeRemote(onA, toRemote(onA), 200);
+  assert.equal(again.upload, false);
+  assert.deepEqual(again.workspace.items, onA.items);
+});
+
+test('a request added to a folded collection before syncing is not lost', () => {
+  const a = deviceWithRequest('ra');
+  const b = deviceWithRequest('rb', 6);
+  const merged = mergeRemote(a.device, toRemote(b.device), 100).workspace;
+  const keptId = liveCollections(merged)[0].id;
+  const stale = [a, b].find(d => d.collectionId !== keptId);
+  stale.device.items.late = item('late', 150, { parentId: stale.collectionId, order: 1 });
+  const { workspace, upload } = mergeRemote(stale.device, toRemote(merged), 200);
+  assert.deepEqual(children(workspace, keptId).map(i => i.id).sort(), ['late', 'ra', 'rb']);
+  assert.equal(upload, true);
+});
+
+test('collections the user made or edited are never folded', () => {
+  const mine = (id, at) => item(id, at, { type: 'collection', parentId: null, name: 'My Collection' });
+  const { workspace } = mergeRemote(ws({ x: mine('x', 3) }), toRemote(ws({ y: mine('y', 4) })), 100);
+  assert.equal(liveCollections(workspace).length, 2);
 });

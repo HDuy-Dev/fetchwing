@@ -70,7 +70,7 @@ export function createSyncer({ getWorkspace, updateWorkspace, setStatus, auth, s
       let upload = false;
       // Merging against the workspace inside the write queue keeps edits made during the round.
       const merged = await updateWorkspace(current => {
-        const result = mergeRemote(current, remote);
+        const result = mergeRemote(current, remote, now());
         upload = result.upload;
         return result.workspace;
       });
