@@ -36,7 +36,7 @@ test('lists every request in tree order, whether its mock is on or off', () => {
 
 test('url is resolved without scheme; unresolved keeps raw url and lists missing', () => {
   const v = view(workspace());
-  assert.deepEqual(row(v, 'a'), { id: 'a', method: 'GET', name: 'Users', url: 'localhost:3000/api/users', status: 500, path: 'My Collection', enabled: false, missing: [] });
+  assert.deepEqual(row(v, 'a'), { id: 'a', method: 'GET', name: 'Users', url: 'localhost:3000/api/users', status: 500, path: 'My Collection', enabled: false, missing: [], problem: null });
   assert.deepEqual(row(v, 'c').missing, ['nope']);
   assert.equal(row(v, 'c').url, '{{nope}}/x');
 });
@@ -124,5 +124,40 @@ test('matchRanges finds every match, merged and in order', () => {
   assert.deepEqual(matchRanges('a.*b', '.*'), [[1, 3]]);
   assert.deepEqual(matchRanges('abc', ''), []);
   assert.deepEqual(matchRanges('abc', 'x'), []);
+});
+
+test('rows say why a mock cannot run', () => {
+  const w = workspace();
+  const collection = children(w.ws, null)[0].id;
+  w.run({ type: 'addItem', id: 'n', itemType: 'request', parentId: collection, name: 'No url' });
+  const v = view(w);
+  assert.equal(row(v, 'c').problem, 'Not running · Unresolved variable: nope');
+  assert.equal(row(v, 'n').problem, 'Not running · No URL');
+  assert.equal(row(v, 'a').problem, null);
+});
+
+test('filterRows searches the problem text shown instead of the url', () => {
+  const rows = [
+    { id: '1', method: 'GET', name: 'A', url: '{{nope}}/x', path: '', problem: 'Not running · Unresolved variable: nope' },
+    { id: '2', method: 'GET', name: 'B', url: 'api.test/x', path: '', problem: null },
+  ];
+  assert.deepEqual(filterRows(rows, 'not running').map(r => r.id), ['1']);
+  assert.deepEqual(filterRows(rows, '{{').map(r => r.id), []);
+});
+
+test('matchRanges keeps positions when lowercasing changes the length', () => {
+  assert.deepEqual(matchRanges('İstanbul', 'stan'), [[1, 5]]);
+  assert.deepEqual(matchRanges('Café İ', 'café'), [[0, 4]]);
+});
+
+test('a request left in a deleted folder has no folder path', () => {
+  const w = workspace();
+  const collection = children(w.ws, null)[0].id;
+  w.run({ type: 'addItem', id: 'f', itemType: 'folder', parentId: collection, name: 'Gone' });
+  w.run({ type: 'addItem', id: 'o', itemType: 'request', parentId: 'f', name: 'Orphan', fields: { url: 'http://x.test/o' } });
+  const ws = { ...w.ws, items: { ...w.ws.items, f: { ...w.ws.items.f, deleted: true } } };
+  const v = popupView(ws, { mockSites: [], tabOrigin: null, hasAccess: false });
+  assert.equal(v.rows.find(r => r.id === 'o').path, '');
+  assert.deepEqual(filterRows(v.rows, 'gone'), []);
 });
 
