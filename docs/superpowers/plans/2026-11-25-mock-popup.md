@@ -176,3 +176,17 @@ Review Focus thêm: từ khóa có ký tự regex (`(`, `.*`, `[`) không làm l
 - [ ] Code `shortUrl`, `displayUrl`; chạy `npm test` (GREEN).
 - [ ] CSS: body 480px, `max-height: 600px`, cột flex; danh sách tối đa 470px và co được; tên và URL cắt "…"; dòng cao tối thiểu 42px. `popup.js`: vẽ `displayUrl`, đặt `title` cho dòng.
 - [ ] Kiểm trong Chromium: kích thước (có và không banner), cắt chữ, tooltip, tìm theo host; chạy lại các script e2e cũ.
+
+### Task 6: Mở mock từ popup trong cửa sổ riêng
+
+**Files:** tạo `src/lib/editor-window.js`, `tests/editor-window.test.js`; sửa `src/popup/popup.js`, `popup.css`, `src/panel/panel.js`.
+
+**Interfaces:**
+- `editorUrl(requestId, tabId?): string` → `src/panel/panel.html?window=1&request=ID[&tabId=N]`
+- `editorParams(search): { isEditor: boolean, requestId: string|null, tabId: number|null }`
+- `openEditorWindow(chrome, { requestId, tabId }): Promise<void>`; cửa sổ đã có thì ghi `storage.session.reveal = { requestId, tabId, at }` rồi focus.
+
+- [ ] Test (RED): URL và tham số; tạo mới 1000×700 loại popup; dùng lại cửa sổ; bỏ qua trang panel không có `window=1`; focus lỗi thì tạo mới. Code, `npm test` GREEN.
+- [ ] Popup: tách dòng thành `div.row` (label bấm được + nút bút chì + status + công tắc), không đặt button trong label.
+- [ ] Panel: chỉ khi là cửa sổ sửa thì chọn request từ URL và từ `reveal` (kể cả đến trước khi tải xong workspace); đọc lại origin khi focus.
+- [ ] Kiểm trong Chromium: mở, dùng lại, chuyển request, giữ chữ đang gõ, panel thường không bị ảnh hưởng, công tắc vẫn như cũ; chạy lại các script cũ.

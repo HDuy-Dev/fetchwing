@@ -131,6 +131,12 @@ export function openDialog(build, { className = 'dialog' } = {}) {
   return close;
 }
 
+// Closes whatever dialog is open, the same way a click outside it would.
+export function dismissDialog() {
+  const backdrop = document.getElementById('dialog');
+  if (!backdrop.hidden) backdrop.dispatchEvent(new MouseEvent('mousedown'));
+}
+
 export function debounce(fn, ms) {
   let t;
   let pending = false;

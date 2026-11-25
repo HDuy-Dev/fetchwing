@@ -70,3 +70,21 @@ Mockup: [mockup/popup-compact.html](../../../mockup/popup-compact.html)
 - Khi tìm: vẫn lọc trên URL đầy đủ. Dòng nào có từ khóa nằm trong URL đầy đủ mà không nằm trong URL rút gọn thì hiện URL đầy đủ.
 - Tên và URL nằm trên một dòng, dài quá thì cắt bằng "…". Rê chuột thấy tên và URL đầy đủ. Dòng "Not running · …" không bị cắt.
 - Nhãn `aria-label` giữ URL đầy đủ.
+
+## Mở mock từ popup (bổ sung 2026-11-25)
+Mockup: [mockup/popup-edit.html](../../../mockup/popup-edit.html)
+
+Mục đích: từ popup mở đúng mock để sửa nhanh. Điều này thay cho "không sửa nội dung mock trong popup": popup vẫn không sửa, chỉ mở trình sửa.
+
+### Cách làm
+- **Đã chọn:** cửa sổ riêng chạy `panel.html`. Dùng được mà không cần mở DevTools, một cú bấm.
+- Loại: chọn mock trong panel DevTools đang mở. Chrome không cho extension tự mở DevTools hay chuyển tab trong DevTools, nên bấm trên popup có thể không thấy gì xảy ra.
+
+### Hành vi
+- Mỗi dòng có nút bút chì (28px) trước status, luôn hiện, `title` "Edit mock", `aria-label` "Edit mock: METHOD tên, url". Bấm nút chỉ mở trình sửa. Bấm chỗ khác trên dòng vẫn bật/tắt như cũ.
+- Cửa sổ loại popup 1000×700, chọn sẵn request ở tab Mock, sidebar ở Collections với thư mục chứa nó được mở. Popup đóng sau khi mở.
+- Chỉ có một cửa sổ sửa: nếu đã mở thì đưa lên trước và chuyển sang request mới, đóng hộp thoại đang mở trong đó. Báo qua `chrome.storage.session`; panel DevTools bỏ qua tín hiệu này.
+- Cửa sổ nhận id tab web mở popup để biết site đang xem, và đọc lại origin khi nhận focus. Tab không phải http/https thì giữ tab cũ.
+- Không mở được: lỗi hiện dưới dòng, "Could not open the editor window."
+- Không xin thêm quyền.
+- Chấp nhận: cửa sổ và panel DevTools lưu chung danh sách tab request đang mở (localStorage), bên thao tác sau cùng thắng ở lần mở lại.

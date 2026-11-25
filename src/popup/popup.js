@@ -2,10 +2,12 @@
 
 import { popupView, siteStep, filterRows, matchRanges, displayUrl } from '../lib/popup-model.js';
 import { grantPath } from '../lib/grant-follow-up.js';
+import { openEditorWindow } from '../lib/editor-window.js';
 import { el, icon } from '../panel/ui.js';
 
 const UNREACHABLE = 'Could not reach Fetchwing.';
 const ALLOW = 'Allow access in the window that opened.';
+const NO_EDITOR = 'Could not open the editor window.';
 
 const $ = id => document.getElementById(id);
 const rows = new Map(); // mock id -> row, kept so updates don't drop focus or scroll
@@ -61,15 +63,21 @@ function createRow(id) {
     url: el('span'),
     pathText: el('span'),
     status: el('span'),
-    input: el('input', { type: 'checkbox', class: 'switch', role: 'switch' }),
+    input: el('input', { type: 'checkbox', class: 'switch', role: 'switch', id: `switch-${id}` }),
+    edit: el('button', { type: 'button', class: 'edit', title: 'Edit mock' }, icon('edit')),
     error: el('div', { class: 'error', role: 'alert', hidden: true }),
     busy: false,
     enabled: false,
   };
+  // Two labels toggle the switch, so the edit button can sit between them without being inside one.
+  const target = { for: `switch-${id}` };
+  row.label = el('label', { ...target, class: 'main' }, row.method,
+    el('span', { class: 'info' }, row.name, row.url, row.path = el('span', { class: 'path' }, icon('folder'), row.pathText)));
   row.node = el('li', {},
-    row.label = el('label', { class: 'row' }, row.method, el('span', { class: 'info' }, row.name, row.url, row.path = el('span', { class: 'path' }, icon('folder'), row.pathText)), row.status, row.input),
+    el('div', { class: 'row' }, row.label, row.edit, el('label', { ...target, class: 'state' }, row.status), row.input),
     row.error);
   row.input.addEventListener('change', () => toggle(id, row.input.checked));
+  row.edit.addEventListener('click', () => openEditor(id));
   return row;
 }
 
@@ -88,6 +96,7 @@ function paintRow(row, data, shown) {
   highlight(row.pathText, data.path, q);
   row.status.className = data.status >= 400 ? 'status bad' : 'status';
   row.status.textContent = String(data.status);
+  row.edit.setAttribute('aria-label', `Edit mock: ${data.method} ${data.name}, ${data.url}`);
   row.input.setAttribute('aria-label', `Mock ${data.method} ${data.name}, ${data.url}${data.path ? `, in ${data.path}` : ''}, status ${data.status}${problem ? `, ${problem}` : ''}`);
   row.enabled = data.enabled;
   if (!row.busy) row.input.checked = data.enabled;
@@ -185,6 +194,20 @@ async function toggle(id, enable) {
   if (focused) row.input.focus();
   showError(row.error, error);
   await refresh();
+}
+
+// Opens the request's mock in the editor window.
+async function openEditor(id) {
+  clearErrors();
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true }).catch(() => []);
+    // Only a web tab tells the editor which site it works on.
+    const onWeb = /^https?:/.test(context.tabOrigin ?? '');
+    await openEditorWindow(chrome, { requestId: id, tabId: onWeb ? tab?.id ?? null : null });
+    window.close();
+  } catch {
+    showError(rows.get(id)?.error ?? $('topError'), NO_EDITOR);
+  }
 }
 
 async function runFromHeader(button, action) {

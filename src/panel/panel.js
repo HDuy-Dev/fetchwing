@@ -12,8 +12,9 @@ import { renderResponse } from './response-view.js';
 import { renderMockEditor, mockFromResponse, setMockOn } from './mock-editor.js';
 import { openEnvironments } from './env-editor.js';
 import { openSettings } from './settings-view.js';
+import { editorParams } from '../lib/editor-window.js';
 import { ensureOrigin } from './permissions.js';
-import { el, icon, iconButton, toast, showMenu, openDialog } from './ui.js';
+import { el, icon, iconButton, toast, showMenu, openDialog, dismissDialog } from './ui.js';
 
 const $ = id => document.getElementById(id);
 import { send } from './runtime.js';
@@ -46,7 +47,12 @@ const state = {
   sync: { state: 'off', email: null, error: null, lastSyncAt: null },
 };
 
-export const inspectedTabId = chrome.devtools?.inspectedWindow?.tabId ?? (Number(new URLSearchParams(location.search).get('tabId')) || null);
+const params = editorParams(location.search);
+// Opened by the popup to edit one mock, outside DevTools.
+const isEditorWindow = params.isEditor && !chrome.devtools;
+export let inspectedTabId = chrome.devtools?.inspectedWindow?.tabId ?? params.tabId;
+// The request to show once the workspace has loaded; a later click replaces it.
+let pendingReveal = isEditorWindow && params.requestId ? { requestId: params.requestId, tabId: params.tabId } : null;
 
 // Theme is chosen in the panel; the first time it starts from the DevTools theme.
 const devtoolsDark = chrome.devtools?.panels?.themeName === 'dark' || (!chrome.devtools?.panels && matchMedia('(prefers-color-scheme: dark)').matches);
@@ -657,6 +663,39 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (changes.workspace || changes.mockSites) render();
 });
 
+// ---------- editor window ----------
+
+async function refreshOrigin() {
+  state.inspectedOrigin = await inspectedOrigin();
+}
+
+// Shows a request's mock, as asked by the popup's edit button.
+async function showPendingReveal() {
+  if (!state.ws || !pendingReveal) return;
+  const { requestId, tabId } = pendingReveal;
+  pendingReveal = null;
+  if (tabId) inspectedTabId = tabId;
+  // The popup may know of a request this window hasn't been told about yet.
+  if (!isLiveRequest(requestId)) state.ws = (await send({ type: 'getWorkspace' })).workspace ?? state.ws;
+  if (!isLiveRequest(requestId)) return toast(ERRORS.not_found);
+  dismissDialog();
+  state.section = 'collections';
+  state.pane = 'mock';
+  expandPath(requestId);
+  select(requestId);
+  await refreshOrigin();
+}
+
+if (isEditorWindow) {
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== 'session' || !changes.reveal?.newValue) return;
+    pendingReveal = changes.reveal.newValue;
+    showPendingReveal();
+  });
+  // The web tab may have moved on while this window was in the background.
+  window.addEventListener('focus', () => { if (state.ws) refreshOrigin(); });
+}
+
 // Known up front so a click can ask for permission without awaiting first
 // (Chrome only shows the prompt during the click itself).
 chrome.devtools?.network?.onNavigated.addListener(url => {
@@ -674,6 +713,7 @@ async function init() {
   renderSync();
   if (!state.expanded.size) for (const c of children(state.ws, null)) state.expanded.add(c.id);
   render();
+  await showPendingReveal();
 }
 
 init();
