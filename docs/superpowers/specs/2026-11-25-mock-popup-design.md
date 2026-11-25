@@ -21,7 +21,7 @@ Bấm icon extension là bật/tắt được mock, không phải mở DevTools.
 - URL còn biến chưa có giá trị: "Not running · Unresolved variable: x" màu cảnh báo.
 - Lỗi hiện ngay dưới dòng, `role="alert"`; công tắc trả về trạng thái cũ. Lỗi mất khi người dùng thao tác lần kế.
 - Footer: "Env <tên>", thêm "Active on this site ·" phía trước khi tab hiện tại đã được bật mock.
-- Rỗng: "No mocks yet" kèm hướng dẫn mở DevTools → Fetchwing.
+- Rỗng (chưa có request nào): "No requests yet" kèm hướng dẫn mở DevTools → Fetchwing và dán cURL.
 
 ## Accessibility
 - Tương phản chữ ≥ 4.5:1 kể cả khi hover; công tắc ≥ 3:1. Vì vậy URL dùng `--muted`, màu cảnh báo bản sáng là `#8a5300`, nút tròn của công tắc đang bật ở bản tối là `#0f1520`.
@@ -31,7 +31,7 @@ Bấm icon extension là bật/tắt được mock, không phải mở DevTools.
 - Trong lúc chờ background trả lời, công tắc đó bị khóa. Trước khi có dữ liệu không hiện màn hình rỗng.
 
 ## Hành vi
-- Danh sách dùng cùng điều kiện với mục Mocks của panel (`isListedMock`): đang bật, từng được bật (`mock.everEnabled`, đồng bộ qua Drive), hoặc có body/headers. Tắt mock không làm nó biến mất. Thứ tự không đổi khi bật/tắt.
+- Danh sách gồm mọi request trong workspace, theo thứ tự cây collection/folder, mock đang bật hay tắt đều hiện. Thứ tự không đổi khi bật/tắt.
 - Popup chỉ đọc qua message `getWorkspace` và ghi qua `mutate` (`setMockEnabled`, `disableAllMocks`). Background vẫn là nơi duy nhất ghi dữ liệu. Popup vẽ lại khi `chrome.storage.onChanged` báo thay đổi.
 - Công tắc chỉ bật/tắt mock, có hiệu lực ngay, không phụ thuộc site đang mở. (Sửa sau khi thử: bản đầu mở cửa sổ cấp quyền ngay khi bật, popup đóng theo và công tắc vẫn tắt, người dùng tưởng không có gì xảy ra.)
 - Quyền cho site đang mở do banner lo. "Enable here" lấy origin của tab:

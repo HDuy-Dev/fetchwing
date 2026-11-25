@@ -20,11 +20,18 @@ function workspace() {
 const view = (w, ctx = {}) => popupView(w.ws, { mockSites: [], tabOrigin: null, hasAccess: false, ...ctx });
 const row = (v, id) => v.rows.find(r => r.id === id);
 
-test('lists mocks that are on or configured, in stable order', () => {
+test('lists every request in tree order, whether its mock is on or off', () => {
   const w = workspace();
-  assert.deepEqual(view(w).rows.map(r => r.id), ['a', 'c']);
+  const collection = children(w.ws, null)[0].id;
+  w.run({ type: 'addItem', id: 'f', itemType: 'folder', parentId: collection, name: 'Folder' });
+  w.run({ type: 'addItem', id: 'e', itemType: 'request', parentId: 'f', name: 'In folder', fields: { url: 'http://x.test/e' } });
+  w.run({ type: 'moveItem', id: 'f', parentId: collection, order: 0 });
+  assert.deepEqual(view(w).rows.map(r => r.id), ['e', 'a', 'c', 'd']);
   w.run({ type: 'setMockEnabled', id: 'a', enabled: true });
-  assert.deepEqual(view(w).rows.map(r => r.id), ['a', 'c']);
+  w.run({ type: 'disableAllMocks' });
+  assert.deepEqual(view(w).rows.map(r => r.id), ['e', 'a', 'c', 'd']);
+  w.run({ type: 'deleteItem', id: 'f' });
+  assert.deepEqual(view(w).rows.map(r => r.id), ['a', 'c', 'd']);
 });
 
 test('url is resolved without scheme; unresolved keeps raw url and lists missing', () => {
@@ -68,16 +75,4 @@ test('siteStep decides what turning a mock on needs', () => {
   assert.equal(siteStep({ origin: o, mockSites: [], hasAccess: true }), 'add');
   assert.equal(siteStep({ origin: o, mockSites: [o], hasAccess: false }), 'grant');
   assert.equal(siteStep({ origin: o, mockSites: [], hasAccess: false }), 'grant');
-});
-
-test('a mock stays listed after it is turned off, so it can be turned on again', () => {
-  const w = workspace();
-  w.run({ type: 'setMockEnabled', id: 'd', enabled: true });
-  assert.deepEqual(view(w).rows.map(r => r.id), ['a', 'c', 'd']);
-  w.run({ type: 'setMockEnabled', id: 'd', enabled: false });
-  assert.deepEqual(view(w).rows.map(r => r.id), ['a', 'c', 'd']);
-  w.run({ type: 'setMockEnabled', id: 'c', enabled: false });
-  w.run({ type: 'disableAllMocks' });
-  assert.deepEqual(view(w).rows.map(r => r.id), ['a', 'c', 'd']);
-  assert.ok(view(w).rows.every(r => !r.enabled));
 });
