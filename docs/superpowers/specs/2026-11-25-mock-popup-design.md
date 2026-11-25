@@ -45,3 +45,14 @@ Bấm icon extension là bật/tắt được mock, không phải mở DevTools.
 
 ## Để người làm tự quyết
 Tên file và hàm, cách chia module trong `src/popup/`.
+
+## Ô tìm kiếm (bổ sung 2026-11-25)
+Mockup: [mockup/popup-search.html](../../../mockup/popup-search.html)
+- Nằm dưới header, luôn hiện khi có request, có focus khi mở popup. Placeholder "Search requests", nhãn `aria-label` cùng chữ.
+- Lọc ngay khi gõ, không phân biệt hoa thường. Tách theo khoảng trắng; mọi từ phải xuất hiện trong method, tên, URL (như đang hiện) hoặc đường dẫn collection/folder.
+- Phần khớp được tô sáng (`<mark>`) trong tên, URL, đường dẫn. Đường dẫn folder chỉ hiện khi đang tìm.
+- Số "N on" và "Pause all" vẫn tính trên toàn bộ request.
+- Footer khi đang tìm: "K of M requests · Env …", được đọc cho screen reader (`aria-live="polite"`).
+- Không khớp: "No requests match “q”", dòng "Search looks in names, URLs, methods and folders." và nút "Clear search".
+- Nút × xóa từ khóa và đưa focus về ô. Esc khi ô có chữ thì xóa chữ, không đóng popup; khi ô trống thì đóng như bình thường.
+- Không nhớ từ khóa giữa các lần mở.

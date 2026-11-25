@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Popup search mockup</title>
+<style>
+  /* Tokens copied from src/popup/popup.css */
+  [data-mode="light"] { --surface:#ffffff; --surface-2:#f0f3f8; --bg:#f5f7fb; --hover:#e9eef6; --divider:#d8dfea; --control:#8592a6; --text:#172033; --muted:#4b586c; --accent:#0f766e; --get:#15803d; --post:#a16207; --delete:#b91c1c; --mock:#be123c; --err:#b91c1c; --thumb-on:#ffffff; --hl:rgba(13,148,136,.22); }
+  [data-mode="dark"] { --surface:#151d2b; --surface-2:#1b2536; --bg:#0f1520; --hover:#222e42; --divider:#2a3648; --control:#5b6b82; --text:#e6ebf2; --muted:#a3afc2; --accent:#2dd4bf; --get:#4ade80; --post:#fbbf24; --delete:#f87171; --mock:#fb7185; --err:#f87171; --thumb-on:#0f1520; --hl:rgba(45,212,191,.28); }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 20px; background: #7a8494; font: 13px/1.45 Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  .sheet { display: grid; grid-template-columns: repeat(4, 360px); gap: 20px; align-items: start; }
+  figure { margin: 0; } figcaption { color: #fff; font-weight: 600; margin-bottom: 8px; }
+  .popup { width: 360px; background: var(--surface); color: var(--text); border-radius: 8px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,.35); }
+  svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+  header { display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 12px; border-bottom: 1px solid var(--divider); }
+  .mark { width: 22px; height: 22px; border-radius: 6px; background: linear-gradient(135deg,#2dd4bf,#0f766e); display: grid; place-items: center; color: #fff; }
+  h1 { margin: 0; font-size: 13px; }
+  .count { color: var(--mock); font-weight: 600; font-size: 12px; }
+  .btn { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--control); background: var(--surface-2); color: var(--text); font: inherit; }
+  .push { margin-left: auto; }
+
+  /* NEW: search */
+  .search { display: flex; align-items: center; gap: 8px; margin: 8px 12px 4px; height: 34px; padding: 0 4px 0 10px; border: 1px solid var(--control); border-radius: 8px; background: var(--bg); color: var(--muted); }
+  .search.focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--hl); }
+  .search input { flex: 1; min-width: 0; border: 0; background: transparent; color: var(--text); font: inherit; outline: none; }
+  .search input::placeholder { color: var(--muted); }
+  .caret { display: inline-block; width: 1px; height: 15px; background: var(--text); vertical-align: middle; margin-left: 1px; }
+  .clear { display: grid; place-items: center; width: 26px; height: 26px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); }
+  .key { font: 600 10.5px ui-monospace, Menlo, monospace; color: var(--muted); border: 1px solid var(--divider); border-radius: 4px; padding: 1px 5px; margin-right: 4px; }
+  mark { background: var(--hl); color: inherit; border-radius: 2px; padding: 0 1px; }
+
+  ul { list-style: none; margin: 0; padding: 4px; }
+  .row { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 6px 8px; border-radius: 6px; }
+  .m { font: 700 11px ui-monospace, Menlo, monospace; width: 46px; flex-shrink: 0; }
+  .GET { color: var(--get); } .POST { color: var(--post); } .DELETE { color: var(--delete); }
+  .info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .name { font-weight: 600; overflow-wrap: anywhere; }
+  .url { font: 11.5px ui-monospace, Menlo, monospace; color: var(--muted); overflow-wrap: anywhere; }
+  .path { font-size: 11.5px; color: var(--muted); display: flex; align-items: center; gap: 4px; }
+  .path svg { width: 11px; height: 11px; }
+  .status { font: 600 11px ui-monospace, Menlo, monospace; color: var(--muted); padding: 2px 5px; border: 1px solid var(--divider); border-radius: 4px; }
+  .status.bad { color: var(--err); border-color: var(--err); }
+  .switch { width: 34px; height: 20px; border-radius: 10px; background: var(--control); position: relative; flex-shrink: 0; }
+  .switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; border-radius: 50%; background: #fff; }
+  .switch.on { background: var(--mock); } .switch.on::after { left: 17px; background: var(--thumb-on); }
+  .nomatch { padding: 28px 24px 24px; text-align: center; color: var(--muted); }
+  .nomatch .title { color: var(--text); font-weight: 700; margin: 0 0 4px; overflow-wrap: anywhere; }
+  .nomatch p { margin: 0 0 12px; }
+  footer { padding: 8px 12px; border-top: 1px solid var(--divider); background: var(--bg); color: var(--muted); font-size: 12px; }
+  footer b { color: var(--text); }
+</style>
+</head>
+<body>
+<div class="sheet" id="sheet"></div>
+<script>
+  const I = {
+    logo: '<path d="M4 15c4-1 7-4 9-9 1 4 0 8-3 11"/><path d="M10 17c3 0 6-1 10-4"/>',
+    search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
+    x: '<path d="M6 6l12 12M18 6 6 18"/>', pause: '<path d="M9 5v14M15 5v14"/>',
+    folder: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+  };
+  const svg = n => `<svg viewBox="0 0 24 24" aria-hidden="true">${I[n]}</svg>`;
+  const all = [
+    ['GET', 'List users', 'api.example.com/users', 200, true, 'Shop API'],
+    ['POST', 'Create order', 'api.example.com/orders', 500, false, 'Shop API / Orders'],
+    ['GET', 'Order detail', 'api.example.com/v2/orders/8f31c2/items', 200, true, 'Shop API / Orders'],
+    ['POST', 'Create order', 'staging.example.com/orders', 201, false, 'Staging / Orders'],
+    ['DELETE', 'Remove cart item', 'api.example.com/cart/42', 204, false, 'Shop API / Cart'],
+  ];
+  const hl = (text, q) => {
+    if (!q) return text;
+    const i = text.toLowerCase().indexOf(q);
+    return i < 0 ? text : `${text.slice(0, i)}<mark>${text.slice(i, i + q.length)}</mark>${text.slice(i + q.length)}`;
+  };
+  const popup = (q, focus) => {
+    const rows = all.filter(r => !q || r.join(' ').toLowerCase().includes(q));
+    const field = q
+      ? `<span>${q}</span>${focus ? '<span class="caret"></span>' : ''}`
+      : `${focus ? '<span class="caret" style="margin:0 2px 0 0"></span>' : ''}<span style="color:var(--muted)">Search requests</span>`;
+    return `<div class="popup">
+      <header><span class="mark">${svg('logo')}</span><h1>Fetchwing</h1><span class="count">2 on</span>
+        <button class="btn push">${svg('pause')}Pause all</button></header>
+      <label class="search ${focus ? 'focus' : ''}">${svg('search')}<span class="input" style="flex:1">${field}</span>
+        ${q ? `<button class="clear" aria-label="Clear search">${svg('x')}</button>` : ''}</label>
+      ${rows.length ? `<ul>${rows.map(([m, n, u, s, on, path]) => `<li><div class="row">
+          <span class="m ${m}">${m}</span>
+          <span class="info"><span class="name">${hl(n, q)}</span><span class="url">${hl(u, q)}</span>
+            ${q ? `<span class="path">${svg('folder')}<span>${hl(path, q)}</span></span>` : ''}</span>
+          <span class="status ${s >= 400 ? 'bad' : ''}">${s}</span><span class="switch ${on ? 'on' : ''}"></span></div></li>`).join('')}</ul>`
+        : `<div class="nomatch"><p class="title">No requests match “${q}”</p><p>Search looks in names, URLs, methods and folders.</p><button class="btn">Clear search</button></div>`}
+      <footer>${q ? `${rows.length} of ${all.length} requests · ` : ''}Env <b>Local</b></footer>
+    </div>`;
+  };
+  const states = [
+    ['Mở popup: ô tìm kiếm có focus', 'dark', popup('', true)],
+    ['Gõ "order": lọc ngay, tô sáng chỗ khớp, hiện folder', 'dark', popup('order', true)],
+    ['Cùng trạng thái, giao diện sáng', 'light', popup('order', true)],
+    ['Không có kết quả', 'light', popup('invoice', true)],
+  ];
+  document.getElementById('sheet').innerHTML = states.map(([c, mode, html]) => `<figure data-mode="${mode}"><figcaption>${c}</figcaption>${html}</figure>`).join('');
+</script>
+</body>
+</html>

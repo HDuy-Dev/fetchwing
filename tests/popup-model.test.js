@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { emptyWorkspace, applyMutation, children } from '../src/lib/model.js';
 import { deriveActiveMocks } from '../src/lib/mocks.js';
-import { popupView, siteStep } from '../src/lib/popup-model.js';
+import { popupView, siteStep, filterRows, matchRanges } from '../src/lib/popup-model.js';
 
 function workspace() {
   let ws = emptyWorkspace();
@@ -36,7 +36,7 @@ test('lists every request in tree order, whether its mock is on or off', () => {
 
 test('url is resolved without scheme; unresolved keeps raw url and lists missing', () => {
   const v = view(workspace());
-  assert.deepEqual(row(v, 'a'), { id: 'a', method: 'GET', name: 'Users', url: 'localhost:3000/api/users', status: 500, enabled: false, missing: [] });
+  assert.deepEqual(row(v, 'a'), { id: 'a', method: 'GET', name: 'Users', url: 'localhost:3000/api/users', status: 500, path: 'My Collection', enabled: false, missing: [] });
   assert.deepEqual(row(v, 'c').missing, ['nope']);
   assert.equal(row(v, 'c').url, '{{nope}}/x');
 });
@@ -90,3 +90,39 @@ test('a request whose folder was deleted by sync stays listed, so its running mo
   assert.equal(v.liveCount, 1);
   assert.equal(v.idleCount, 1);
 });
+
+test('rows carry the collection and folder path', () => {
+  const w = workspace();
+  const collection = children(w.ws, null)[0].id;
+  w.run({ type: 'addItem', id: 'f', itemType: 'folder', parentId: collection, name: 'Folder' });
+  w.run({ type: 'addItem', id: 'e', itemType: 'request', parentId: 'f', name: 'In folder', fields: { url: 'http://x.test/e' } });
+  assert.equal(row(view(w), 'e').path, 'My Collection / Folder');
+  assert.equal(row(view(w), 'a').path, 'My Collection');
+});
+
+test('filterRows matches every word against method, name, url and path, ignoring case', () => {
+  const rows = [
+    { id: '1', method: 'GET', name: 'List users', url: 'api.example.com/users', path: 'Shop API' },
+    { id: '2', method: 'POST', name: 'Create order', url: 'api.example.com/orders', path: 'Shop API / Orders' },
+    { id: '3', method: 'POST', name: 'Create order', url: 'staging.example.com/orders', path: 'Staging / Orders' },
+  ];
+  const ids = q => filterRows(rows, q).map(r => r.id);
+  assert.deepEqual(ids(''), ['1', '2', '3']);
+  assert.deepEqual(ids('   '), ['1', '2', '3']);
+  assert.deepEqual(ids('ORDER'), ['2', '3']);
+  assert.deepEqual(ids('post staging'), ['3']);
+  assert.deepEqual(ids('get'), ['1']);
+  assert.deepEqual(ids('shop orders'), ['2']);
+  assert.deepEqual(ids('invoice'), []);
+  assert.deepEqual(ids('(.*['), []);
+});
+
+test('matchRanges finds every match, merged and in order', () => {
+  assert.deepEqual(matchRanges('Order orders', 'order'), [[0, 5], [6, 11]]);
+  assert.deepEqual(matchRanges('abc', 'b c'), [[1, 3]]);
+  assert.deepEqual(matchRanges('aaaa', 'aa'), [[0, 4]]);
+  assert.deepEqual(matchRanges('a.*b', '.*'), [[1, 3]]);
+  assert.deepEqual(matchRanges('abc', ''), []);
+  assert.deepEqual(matchRanges('abc', 'x'), []);
+});
+

@@ -147,3 +147,21 @@ test('grantPath', () => {
 ## Kiểm trên Chrome thật (người dùng làm)
 
 Load unpacked, rồi: bấm icon thấy popup; bật mock trên site mới, cấp quyền, mock chạy ngay không cần bật lại; "Enable here"; dùng Tab và Space.
+
+### Task 4: Ô tìm kiếm
+
+**Files:** Modify `src/lib/popup-model.js`, `src/popup/popup.{html,css,js}`; Test `tests/popup-model.test.js`
+
+**Interfaces:**
+- `popupView` rows thêm `path: string` (tên collection/folder chứa request, nối bằng " / ").
+- `filterRows(rows, query: string)` → rows khớp (giữ thứ tự). Query rỗng/khoảng trắng → nguyên danh sách.
+- `matchRanges(text: string, query: string)` → `Array<[start, end]>` đã sắp xếp và gộp chồng lấn, không phân biệt hoa thường.
+
+- [ ] **Step 1: Test fail:** `path` = `'My Collection / Folder'` cho request trong folder; `filterRows` khớp theo tên, URL, method, path, nhiều từ là AND, hoa thường như nhau, query `'  '` trả nguyên; `matchRanges('Order orders', 'order')` → `[[0,5],[6,11]]`, `matchRanges('abc', 'b c')` → `[[1,2],[2,3]]` gộp thành `[[1,3]]`, query rỗng → `[]`.
+- [ ] **Step 2:** `npm test` → FAIL.
+- [ ] **Step 3:** Cài đặt.
+- [ ] **Step 4:** `npm test` → PASS. Commit `feat: filter logic for popup search`.
+- [ ] **Step 5:** Popup theo spec "Ô tìm kiếm" và mockup. Lọc bằng `hidden` trên dòng có sẵn (giữ focus/scroll). Tô sáng chỉ dựng bằng text node và `<mark>`, không `innerHTML`.
+- [ ] **Step 6:** Chromium với extension thật: focus khi mở; gõ lọc đúng; tên `<img onerror>` vẫn là chữ khi tô sáng; Esc xóa chữ không đóng; × đưa focus về ô; không khớp hiện nút Clear; bật/tắt dòng đang lọc vẫn chạy; footer đếm đúng; ảnh sáng/tối. `npm test`, `npm run build` PASS. Commit `feat: add a search box to the popup`.
+
+Review Focus thêm: từ khóa có ký tự regex (`(`, `.*`, `[`) không làm lỗi; dữ liệu đổi qua `storage.onChanged` khi đang tìm thì danh sách vẫn được lọc theo từ khóa hiện tại.
