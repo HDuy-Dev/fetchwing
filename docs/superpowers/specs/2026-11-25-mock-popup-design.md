@@ -33,12 +33,10 @@ Bấm icon extension là bật/tắt được mock, không phải mở DevTools.
 ## Hành vi
 - Danh sách dùng cùng điều kiện với mục Mocks của panel: đang bật, hoặc có body/headers. Thứ tự không đổi khi bật/tắt.
 - Popup chỉ đọc qua message `getWorkspace` và ghi qua `mutate` (`setMockEnabled`, `disableAllMocks`). Background vẫn là nơi duy nhất ghi dữ liệu. Popup vẽ lại khi `chrome.storage.onChanged` báo thay đổi.
-- Khi bật mock: lấy origin của tab đang mở.
-  - Tab không phải http/https: chỉ bật mock.
-  - Origin đã có trong `mockSites`: chỉ bật mock.
-  - Origin đã có quyền nhưng chưa có trong `mockSites`: gửi `addMockSite` rồi bật.
-  - Chưa có quyền: mở `grant.html` kèm tham số cho biết việc cần làm tiếp (id mock nếu có). Cửa sổ mới lấy focus nên popup nhiều khả năng đóng ngay, vì vậy không dựa vào thông báo trong popup. Sau khi được cấp quyền, `grant.html` tự gửi `addMockSite`, bật mock (nếu có id), rồi báo kết quả hoặc lỗi. Người dùng không phải bật lại. Panel gọi `grant.html` không có tham số thì giữ hành vi cũ. Popup không tự gọi `chrome.permissions.request` vì hộp thoại có thể làm popup đóng.
-- "Enable here" đi cùng các bước trên, chỉ khác là không bật thêm mock nào.
+- Công tắc chỉ bật/tắt mock, có hiệu lực ngay, không phụ thuộc site đang mở. (Sửa sau khi thử: bản đầu mở cửa sổ cấp quyền ngay khi bật, popup đóng theo và công tắc vẫn tắt, người dùng tưởng không có gì xảy ra.)
+- Quyền cho site đang mở do banner lo. "Enable here" lấy origin của tab:
+  - Origin đã có quyền nhưng chưa có trong `mockSites`: gửi `addMockSite`.
+  - Chưa có quyền: mở `grant.html` (tham số `site=1`). Sau khi được cấp quyền, `grant.html` tự gửi `addMockSite` rồi báo kết quả hoặc lỗi. Panel gọi `grant.html` không có tham số thì giữ hành vi cũ. Popup không tự gọi `chrome.permissions.request` vì hộp thoại có thể làm popup đóng.
 
 ## Ràng buộc
 - MV3, không thêm thư viện, không bước build mới (`scripts/build.sh` đã copy cả `src/`).

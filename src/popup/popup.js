@@ -110,13 +110,13 @@ async function refresh() {
   paint(popupView(res.workspace, context));
 }
 
-// Gets mocks running on the current tab's site. Returns an error message, or null.
-async function enableSite(mockId) {
+// Gets mocks running on the current tab's site ("Enable here"). Returns an error message, or null.
+async function enableSite() {
   const { tabOrigin: origin } = context;
   const step = siteStep({ origin, mockSites: context.mockSites, hasAccess: context.hasAccess });
   if (step === 'grant') {
     // The new window takes focus and usually closes this popup; it finishes the job itself.
-    await chrome.windows.create({ url: chrome.runtime.getURL(grantPath(origin, mockId)), type: 'popup', width: 440, height: 260 });
+    await chrome.windows.create({ url: chrome.runtime.getURL(grantPath(origin)), type: 'popup', width: 440, height: 260 });
     return ALLOW;
   }
   if (step === 'add') {
@@ -139,7 +139,8 @@ async function toggle(id, enable) {
   row.input.disabled = true;
   let error;
   try {
-    error = (enable ? await enableSite(id) : null) ?? await mutate({ type: 'setMockEnabled', id, enabled: enable });
+    // The switch only changes the mock; site access is the banner's job, so this always takes effect.
+    error = await mutate({ type: 'setMockEnabled', id, enabled: enable });
   } catch {
     error = UNREACHABLE;
   }
@@ -168,7 +169,7 @@ async function runFromHeader(button, action) {
 $('mark').append(icon('logo'));
 $('pauseAll').append(icon('pause'), 'Pause all');
 $('pauseAll').addEventListener('click', e => runFromHeader(e.currentTarget, () => mutate({ type: 'disableAllMocks' })));
-$('enableHere').addEventListener('click', e => runFromHeader(e.currentTarget, () => enableSite(null)));
+$('enableHere').addEventListener('click', e => runFromHeader(e.currentTarget, () => enableSite()));
 
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area === 'local' && (changes.workspace || changes.mockSites)) refresh();
