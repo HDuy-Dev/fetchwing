@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fetchwing popup mockup</title>
+<style>
+  /* Tokens copied from src/panel/panel.css */
+  [data-mode="dark"] { --bg:#0f1520; --surface:#151d2b; --surface-2:#1b2536; --hover:#222e42; --divider:#2a3648; --control:#5b6b82; --text:#e6ebf2; --muted:#a3afc2; --faint:#8b98ad; --accent:#2dd4bf; --get:#4ade80; --post:#fbbf24; --put:#60a5fa; --patch:#c084fc; --delete:#f87171; --mock:#fb7185; --mock-soft:rgba(251,113,133,.10); --err:#f87171; --err-soft:rgba(248,113,113,.10); --warn:#fbbf24; --thumb-on:#0f1520; }
+  [data-mode="light"] { --bg:#f5f7fb; --surface:#ffffff; --surface-2:#f0f3f8; --hover:#e9eef6; --divider:#d8dfea; --control:#8592a6; --text:#172033; --muted:#4b586c; --faint:#5f6e83; --accent:#0f766e; --get:#15803d; --post:#a16207; --put:#1d4ed8; --patch:#7e22ce; --delete:#b91c1c; --mock:#be123c; --mock-soft:rgba(190,18,60,.08); --err:#b91c1c; --err-soft:rgba(185,28,28,.07); --warn:#8a5300; --thumb-on:#ffffff; }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 20px; background: #7a8494; font: 13px/1.45 Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  .sheet { display: grid; grid-template-columns: repeat(5, 360px); gap: 20px; align-items: start; }
+  figure { margin: 0; }
+  figcaption { color: #fff; font-weight: 600; margin-bottom: 8px; }
+
+  .popup { width: 360px; background: var(--surface); color: var(--text); border-radius: 8px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,.35); }
+  header { display: flex; align-items: center; gap: 8px; height: 48px; padding: 0 12px; border-bottom: 1px solid var(--divider); }
+  .mark { width: 22px; height: 22px; border-radius: 6px; background: linear-gradient(135deg,#2dd4bf,#0f766e); display: grid; place-items: center; }
+  .mark svg, .btn svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .mark svg { stroke: #fff; }
+  .title { font-weight: 700; }
+  .count { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .count.on { color: var(--mock); font-weight: 600; }
+  .btn { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--control); background: var(--surface-2); color: var(--text); font: inherit; cursor: pointer; }
+  .btn:disabled { opacity: .5; cursor: default; }
+  ul { list-style: none; margin: 0; padding: 4px; max-height: 440px; overflow-y: auto; }
+  .row { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 6px 8px; border-radius: 6px; cursor: pointer; }
+  .row:hover { background: var(--hover); }
+  .m { font: 700 11px/1 ui-monospace, Menlo, monospace; width: 46px; flex-shrink: 0; }
+  .GET { color: var(--get); } .POST { color: var(--post); } .PUT { color: var(--put); } .DELETE { color: var(--delete); }
+  .info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .name, .url { overflow-wrap: anywhere; }
+  .name { font-weight: 600; }
+  .url { font: 11.5px ui-monospace, Menlo, monospace; color: var(--muted); }
+  .url.warn { color: var(--warn); }
+  .status { font: 600 11px ui-monospace, Menlo, monospace; color: var(--muted); padding: 2px 5px; border: 1px solid var(--divider); border-radius: 4px; }
+  .switch { appearance: none; width: 34px; height: 20px; border-radius: 10px; background: var(--control); position: relative; flex-shrink: 0; margin: 0; cursor: pointer; }
+  .switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; border-radius: 50%; background: #fff; transition: left .15s; }
+  .switch:checked { background: var(--mock); }
+  .switch:checked::after { left: 17px; background: var(--thumb-on); }
+  .switch:focus-visible, .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .status.bad { color: var(--err); border-color: var(--err); }
+  .banner { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--divider); background: var(--mock-soft); font-size: 12px; overflow-wrap: anywhere; }
+  .banner .btn { flex-shrink: 0; }
+  .error { margin: 0 8px 6px 64px; padding: 6px 8px; border-radius: 6px; background: var(--err-soft); color: var(--err); font-size: 12px; }
+  footer { padding: 8px 12px; border-top: 1px solid var(--divider); background: var(--bg); color: var(--muted); font-size: 12px; }
+  footer b { color: var(--text); font-weight: 600; }
+  .empty { padding: 28px 24px; text-align: center; color: var(--muted); }
+  .empty p { margin: 0 0 4px; }
+  .empty .title { color: var(--text); }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="sheet" id="sheet"></div>
+<script>
+  const logo = '<span class="mark"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 15c4-1 7-4 9-9 1 4 0 8-3 11"/><path d="M10 17c3 0 6-1 10-4"/></svg></span>';
+  const pause = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5v14M15 5v14"/></svg>';
+  const row = ([method, name, url, status, on, warn, error]) => `
+    <li><label class="row">
+      <span class="m ${method}">${method}</span>
+      <span class="info"><span class="name">${name}</span><span class="url ${warn ? 'warn' : ''}">${warn ? 'Not running · ' : ''}${url}</span></span>
+      <span class="status ${status >= 400 ? 'bad' : ''}">${status}</span>
+      <input type="checkbox" class="switch" role="switch" aria-label="Mock ${method} ${name}, ${url}, status ${status}" ${on ? 'checked' : ''}>
+    </label>${error ? `<div class="error" role="alert">${error}</div>` : ''}</li>`;
+  const rows = [
+    ['GET', 'List users', 'api.example.com/users', 200, true],
+    ['POST', 'Create order', 'api.example.com/orders', 500, false],
+    ['GET', 'Order detail with a very long request name', 'api.example.com/v2/orders/8f31c2/items?expand=all', 200, true],
+    ['DELETE', 'Remove cart item', 'Unresolved variable: baseUrl', 204, false, true],
+  ];
+  const popup = (list, footer, banner) => {
+    const on = list.filter(r => r[4] && !r[5]).length;
+    const idle = list.filter(r => r[4] && r[5]).length;
+    return `<div class="popup">
+      <header>${logo}<span class="title">Fetchwing</span>
+        <span class="count ${on ? 'on' : ''}">${list.length ? `${on} on${idle ? ` · ${idle} not running` : ''}` : ''}</span>
+        <button type="button" class="btn" ${on + idle ? '' : 'disabled'}>${pause}Pause all</button></header>
+      ${banner ? `<div class="banner"><span>${banner}</span><button type="button" class="btn">Enable here</button></div>` : ''}
+      ${list.length ? `<ul>${list.map(row).join('')}</ul>` : '<div class="empty"><p class="title">No mocks yet</p><p>Open DevTools → Fetchwing, pick a request and set up its Mock tab.</p></div>'}
+      ${footer ? `<footer>${footer}</footer>` : ''}
+    </div>`;
+  };
+  const site = 'Active on this site · Env <b>Local</b>';
+  const failed = rows.map((r, i) => (i === 1 ? [...r.slice(0, 5), false, 'Another mock for this request is already on: Create order (fail)'] : r));
+  const states = [
+    ['Dark', 'dark', popup(rows, site)],
+    ['Light', 'light', popup(rows, site)],
+    ['Lỗi trùng mock', 'dark', popup(failed, site)],
+    ['Tab hiện tại chưa chạy mock', 'light', popup(rows.map((r, i) => (i === 3 ? [...r.slice(0, 4), true, true] : r)), 'Env <b>Local</b>', 'Mocks are not running on <b>shop.local:5173</b>')],
+    ['Chưa có mock', 'light', popup([], '')],
+  ];
+  document.getElementById('sheet').innerHTML = states
+    .map(([caption, mode, html]) => `<figure data-mode="${mode}"><figcaption>${caption}</figcaption>${html}</figure>`).join('');
+</script>
+</body>
+</html>
