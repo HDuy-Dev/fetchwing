@@ -1,32 +1,38 @@
 // Flattens a parsed JSON value into display lines with fold information,
 // so the panel can render line numbers and collapse { } / [ ] blocks.
+// A string holding a JSON object/array is shown as that value; its open line
+// carries `embedded`, the path to the string.
 // Line: { depth, key, kind: 'open'|'close'|'value', text, comma, block,
-//         end, size, bracket, valueType }
+//         end, size, bracket, valueType, embedded }
+
+import { parseEmbedded } from './json-text.js';
 
 export function jsonLines(value) {
   const lines = [];
   let nextBlock = 0;
 
-  function walk(v, depth, key, comma) {
+  function walk(raw, depth, key, comma, path) {
+    const held = depth > 0 && typeof raw === 'string' ? parseEmbedded(raw) : null;
+    const v = held ?? raw;
     const isObj = v !== null && typeof v === 'object';
-    const entries = isObj ? (Array.isArray(v) ? v.map(x => [null, x]) : Object.entries(v)) : null;
+    const entries = isObj ? (Array.isArray(v) ? v.map((x, i) => [i, x]) : Object.entries(v)) : null;
     if (!isObj || entries.length === 0) {
       lines.push({
-        depth, key, kind: 'value', comma, block: null, end: null, size: null, bracket: null,
+        depth, key, kind: 'value', comma, embedded: null, block: null, end: null, size: null, bracket: null,
         text: isObj ? (Array.isArray(v) ? '[]' : '{}') : JSON.stringify(v),
         valueType: v === null ? 'null' : Array.isArray(v) ? 'array' : typeof v,
       });
       return;
     }
     const [open, close] = Array.isArray(v) ? ['[', ']'] : ['{', '}'];
-    const line = { depth, key, kind: 'open', text: open, comma: false, block: nextBlock++, end: null, size: entries.length, bracket: open, valueType: Array.isArray(v) ? 'array' : 'object' };
+    const line = { depth, key, kind: 'open', text: open, comma: false, block: nextBlock++, end: null, size: entries.length, bracket: open, valueType: Array.isArray(v) ? 'array' : 'object', embedded: held ? path : null };
     lines.push(line);
-    entries.forEach(([k, child], i) => walk(child, depth + 1, k, i < entries.length - 1));
+    entries.forEach(([k, child], i) => walk(child, depth + 1, Array.isArray(v) ? null : k, i < entries.length - 1, [...path, k]));
     line.end = lines.length;
-    lines.push({ depth, key: null, kind: 'close', text: close, comma, block: line.block, end: null, size: null, bracket: close, valueType: line.valueType });
+    lines.push({ depth, key: null, kind: 'close', text: close, comma, block: line.block, end: null, size: null, bracket: close, valueType: line.valueType, embedded: null });
   }
 
-  walk(value, 0, null, false);
+  walk(value, 0, null, false, []);
   return lines;
 }
 

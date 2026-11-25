@@ -214,6 +214,10 @@ table.kv tr:hover .row-x, table.kv tr:focus-within .row-x { opacity: 1; }
 .jrow .fold:hover { color: var(--accent); }
 .jrow .jc { white-space: pre-wrap; word-break: break-word; }
 .jrow .more { color: var(--faint); background: var(--surface-2); border: 0; border-radius: var(--r-sm); padding: 0 4px; margin: 0 2px; font: inherit; cursor: pointer; }
+.jrow .jtag { margin-left: 8px; padding: 0 6px; border: 1px solid var(--divider); border-radius: var(--r-sm); color: var(--muted); font-size: 11px; user-select: none; }
+.jrow .jedit { margin-left: 4px; padding: 0 4px; border: 0; border-radius: var(--r-sm); background: transparent; color: var(--muted); cursor: pointer; vertical-align: middle; line-height: 1; }
+.jrow .jedit:hover { background: var(--surface-2); color: var(--accent); }
+.jrow .jedit .i { width: 13px; height: 13px; }
 .k { color: var(--j-key); } .s { color: var(--j-str); } .n { color: var(--j-num); } .l { color: var(--j-lit); }
 
 /* mock pane */
