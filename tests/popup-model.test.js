@@ -69,3 +69,15 @@ test('siteStep decides what turning a mock on needs', () => {
   assert.equal(siteStep({ origin: o, mockSites: [o], hasAccess: false }), 'grant');
   assert.equal(siteStep({ origin: o, mockSites: [], hasAccess: false }), 'grant');
 });
+
+test('a mock stays listed after it is turned off, so it can be turned on again', () => {
+  const w = workspace();
+  w.run({ type: 'setMockEnabled', id: 'd', enabled: true });
+  assert.deepEqual(view(w).rows.map(r => r.id), ['a', 'c', 'd']);
+  w.run({ type: 'setMockEnabled', id: 'd', enabled: false });
+  assert.deepEqual(view(w).rows.map(r => r.id), ['a', 'c', 'd']);
+  w.run({ type: 'setMockEnabled', id: 'c', enabled: false });
+  w.run({ type: 'disableAllMocks' });
+  assert.deepEqual(view(w).rows.map(r => r.id), ['a', 'c', 'd']);
+  assert.ok(view(w).rows.every(r => !r.enabled));
+});

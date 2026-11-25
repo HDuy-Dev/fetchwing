@@ -31,7 +31,7 @@ Bấm icon extension là bật/tắt được mock, không phải mở DevTools.
 - Trong lúc chờ background trả lời, công tắc đó bị khóa. Trước khi có dữ liệu không hiện màn hình rỗng.
 
 ## Hành vi
-- Danh sách dùng cùng điều kiện với mục Mocks của panel: đang bật, hoặc có body/headers. Thứ tự không đổi khi bật/tắt.
+- Danh sách dùng cùng điều kiện với mục Mocks của panel (`isListedMock`): đang bật, từng được bật (`mock.everEnabled`, đồng bộ qua Drive), hoặc có body/headers. Tắt mock không làm nó biến mất. Thứ tự không đổi khi bật/tắt.
 - Popup chỉ đọc qua message `getWorkspace` và ghi qua `mutate` (`setMockEnabled`, `disableAllMocks`). Background vẫn là nơi duy nhất ghi dữ liệu. Popup vẽ lại khi `chrome.storage.onChanged` báo thay đổi.
 - Công tắc chỉ bật/tắt mock, có hiệu lực ngay, không phụ thuộc site đang mở. (Sửa sau khi thử: bản đầu mở cửa sổ cấp quyền ngay khi bật, popup đóng theo và công tắc vẫn tắt, người dùng tưởng không có gì xảy ra.)
 - Quyền cho site đang mở do banner lo. "Enable here" lấy origin của tab:

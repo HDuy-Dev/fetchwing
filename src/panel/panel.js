@@ -3,6 +3,7 @@
 import { children, newId, pathOf, liveRequests, liveEnvironments } from '../lib/model.js';
 import { parseCurl, splitCurlCommands } from '../lib/curl.js';
 import { envVars, resolveVars } from '../lib/vars.js';
+import { isListedMock } from '../lib/mocks.js';
 import { renderTree } from './tree.js';
 import { renderTabs } from './tabs.js';
 import { openSearch } from './search.js';
@@ -560,8 +561,7 @@ function renderSide() {
   } else {
     const on = mocksOn();
     actions.append(iconButton('pause', 'Pause all', pauseAll, { disabled: !on.length }));
-    // Requests that have a mock set up (on, or edited away from the default).
-    const mocks = liveRequests(state.ws).filter(r => r.mock.enabled || r.mock.body || r.mock.headers.length);
+    const mocks = liveRequests(state.ws).filter(isListedMock);
     if (!mocks.length) content.append(el('div', { class: 'side-empty' }, 'No mocks yet.'));
     for (const r of mocks) {
       const sw = el('input', {
