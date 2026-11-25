@@ -85,6 +85,7 @@ Mục đích: từ popup mở đúng mock để sửa nhanh. Điều này thay c
 - Cửa sổ loại popup 1000×700, chọn sẵn request ở tab Mock, sidebar ở Collections với thư mục chứa nó được mở. Popup đóng sau khi mở.
 - Chỉ có một cửa sổ sửa: nếu đã mở thì đưa lên trước và chuyển sang request mới, đóng hộp thoại đang mở trong đó. Báo qua `chrome.storage.session`; panel DevTools bỏ qua tín hiệu này.
 - Cửa sổ nhận id tab web mở popup để biết site đang xem, và đọc lại origin khi nhận focus. Tab không phải http/https thì giữ tab cũ.
+- Chrome chỉ cho cửa sổ đọc địa chỉ tab nhờ quyền tạm lúc mở popup (hoặc site đã cấp quyền). Khi không đọc được (tab đã sang site khác, đã đóng, không phải web) mà người dùng bật mock trong cửa sổ, hiện thông báo rằng không biết site nào và chỉ cách bấm "Enable here" trên popup. DevTools panel không đổi.
 - Không mở được: lỗi hiện dưới dòng, "Could not open the editor window."
 - Không xin thêm quyền.
 - Chấp nhận: cửa sổ và panel DevTools lưu chung danh sách tab request đang mở (localStorage), bên thao tác sau cùng thắng ở lần mở lại.

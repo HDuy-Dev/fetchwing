@@ -22,6 +22,13 @@ const isEditorPage = (url, pageUrl) => {
   return path === pageUrl && editorParams(search).isEditor;
 };
 
+// Outside DevTools the web tab's address is readable only while Chrome lets us, so
+// the site step can be skipped; say so rather than leave a mock quietly not running.
+export function unknownSiteNotice({ isEditorWindow, origin }) {
+  if (!isEditorWindow || /^https?:\/\//.test(origin ?? '')) return null;
+  return 'Mock is on, but this window can’t tell which site you’re on. If it doesn’t run there, open the Fetchwing popup on that site and press “Enable here”.';
+}
+
 // Shows the request in the editor window, opening one only if there is none.
 export async function openEditorWindow(chrome, { requestId, tabId }) {
   const pageUrl = chrome.runtime.getURL(PAGE);

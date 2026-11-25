@@ -33,6 +33,7 @@ const ERRORS = {
 
 const state = {
   ws: null,
+  isEditorWindow: false, // set below, once the URL is read
   mockSites: [],
   section: store.get('section', 'collections'),
   selectedId: store.get('selected', null),
@@ -50,6 +51,7 @@ const state = {
 const params = editorParams(location.search);
 // Opened by the popup to edit one mock, outside DevTools.
 const isEditorWindow = params.isEditor && !chrome.devtools;
+state.isEditorWindow = isEditorWindow;
 export let inspectedTabId = chrome.devtools?.inspectedWindow?.tabId ?? params.tabId;
 // The request to show once the workspace has loaded; a later click replaces it.
 let pendingReveal = isEditorWindow && params.requestId ? { requestId: params.requestId, tabId: params.tabId } : null;

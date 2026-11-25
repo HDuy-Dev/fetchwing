@@ -1,6 +1,7 @@
 // Mock pane: switch, Status / Delay / Content-Type, and a body viewer that toggles to an editor.
 
-import { el, debounce, iconButton } from './ui.js';
+import { el, debounce, iconButton, toast } from './ui.js';
+import { unknownSiteNotice } from '../lib/editor-window.js';
 import { ensureOrigin } from './permissions.js';
 import { prettyBody } from './response-view.js';
 import { parseJson, renderJsonView } from './json-view.js';
@@ -34,7 +35,10 @@ export async function setMockOn(id, enable, state) {
     }
   }
   const res = await send({ type: 'mutate', mutation: { type: 'setMockEnabled', id, enabled: enable } });
-  return res?.ok ? null : (res?.error ?? 'Could not change the mock.');
+  if (!res?.ok) return res?.error ?? 'Could not change the mock.';
+  const notice = enable ? unknownSiteNotice({ isEditorWindow: state.isEditorWindow, origin: state.inspectedOrigin }) : null;
+  if (notice) toast(notice, 8000);
+  return null;
 }
 
 export function renderMockEditor(pane, item, state) {

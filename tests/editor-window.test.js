@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { editorUrl, editorParams, openEditorWindow } from '../src/lib/editor-window.js';
+import { editorUrl, editorParams, openEditorWindow, unknownSiteNotice } from '../src/lib/editor-window.js';
 
 const BASE = 'chrome-extension://abc/';
 
@@ -68,4 +68,13 @@ test('opens a new window when the old one cannot be focused', async () => {
   const chrome = fakeChrome({ failUpdate: true, contexts: [{ documentUrl: `${BASE}src/panel/panel.html?window=1&request=old`, windowId: 42 }] });
   await openEditorWindow(chrome, { requestId: 'a' });
   assert.equal(named(chrome, 'create').length, 1);
+});
+
+test('the editor window says so when it cannot tell which site a mock should run on', () => {
+  for (const origin of [null, undefined, 'null', 'chrome://extensions']) {
+    assert.match(unknownSiteNotice({ isEditorWindow: true, origin }), /can’t tell which site.*Enable here/);
+  }
+  assert.equal(unknownSiteNotice({ isEditorWindow: true, origin: 'https://shop.test' }), null);
+  assert.equal(unknownSiteNotice({ isEditorWindow: false, origin: null }), null);
+  assert.equal(unknownSiteNotice({ origin: null }), null);
 });
