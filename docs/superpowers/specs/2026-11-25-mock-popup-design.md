@@ -14,10 +14,10 @@ Bấm icon extension là bật/tắt được mock, không phải mở DevTools.
 - Loại: menu chuột phải (không có công tắc), side panel (không phải popup).
 
 ## Giao diện
-- Rộng 360px, danh sách cao tối đa 440px rồi cuộn. Chữ tiếng Anh. Màu lấy từ `panel.css`, sáng/tối theo `prefers-color-scheme`.
+- Rộng 480px, cao tối đa 600px (giới hạn của Chrome); danh sách cao tối đa 470px rồi cuộn, tự co lại khi có banner hoặc lỗi. Chữ tiếng Anh. Màu lấy từ `panel.css`, sáng/tối theo `prefers-color-scheme`.
 - Header: logo, "Fetchwing", "N on" (chỉ đếm mock đang chạy thật, khớp số trên badge), thêm "· K not running" nếu có mock đang bật mà không chạy được. "Pause all" mờ khi không có mock nào bật.
 - Banner: khi có mock đang chạy, tab hiện tại là http/https và chưa nằm trong `mockSites`: "Mocks are not running on <site>" + nút "Enable here".
-- Mỗi dòng: method, tên, URL (đã thay biến, bỏ `https://`), status code của mock (từ 400 trở lên viền và chữ màu lỗi), công tắc. Bấm cả dòng là đổi công tắc. Tên và URL xuống dòng, không cắt: phần cuối URL thường là chỗ phân biệt hai request.
+- Mỗi dòng: method, tên, URL rút gọn, status code của mock (từ 400 trở lên viền và chữ màu lỗi), công tắc. Bấm cả dòng là đổi công tắc. Cách rút gọn ở mục "Dòng rút gọn".
 - URL còn biến chưa có giá trị: "Not running · Unresolved variable: x" màu cảnh báo.
 - Lỗi hiện ngay dưới dòng, `role="alert"`; công tắc trả về trạng thái cũ. Lỗi mất khi người dùng thao tác lần kế.
 - Footer: "Env <tên>", thêm "Active on this site ·" phía trước khi tab hiện tại đã được bật mock.
@@ -56,3 +56,17 @@ Mockup: [mockup/popup-search.html](../../../mockup/popup-search.html)
 - Không khớp: "No requests match “q”", dòng "Search looks in names, URLs, methods and folders." và nút "Clear search".
 - Nút × xóa từ khóa và đưa focus về ô. Esc khi ô có chữ thì xóa chữ, không đóng popup; khi ô trống thì đóng như bình thường.
 - Không nhớ từ khóa giữa các lần mở.
+
+## Dòng rút gọn (bổ sung 2026-11-25)
+Mockup: [mockup/popup-compact.html](../../../mockup/popup-compact.html)
+
+### Cách làm
+- **Đã chọn (A):** hai dòng, tên và path.
+- Loại: một dòng chỉ có tên (thấy thêm 2 dòng nhưng hai request trùng tên khác host trông giống hệt nhau).
+
+### Hành vi
+- Dòng phụ là phần sau host (path, query, fragment); URL chỉ có host thì là "/".
+- Giữ host khi một request khác cùng method, cùng path nhưng khác host (so host không phân biệt hoa thường).
+- Khi tìm: vẫn lọc trên URL đầy đủ. Dòng nào có từ khóa nằm trong URL đầy đủ mà không nằm trong URL rút gọn thì hiện URL đầy đủ.
+- Tên và URL nằm trên một dòng, dài quá thì cắt bằng "…". Rê chuột thấy tên và URL đầy đủ. Dòng "Not running · …" không bị cắt.
+- Nhãn `aria-label` giữ URL đầy đủ.

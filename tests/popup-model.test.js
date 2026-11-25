@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { emptyWorkspace, applyMutation, children } from '../src/lib/model.js';
 import { deriveActiveMocks } from '../src/lib/mocks.js';
-import { popupView, siteStep, filterRows, matchRanges } from '../src/lib/popup-model.js';
+import { popupView, siteStep, filterRows, matchRanges, displayUrl } from '../src/lib/popup-model.js';
 
 function workspace() {
   let ws = emptyWorkspace();
@@ -36,7 +36,7 @@ test('lists every request in tree order, whether its mock is on or off', () => {
 
 test('url is resolved without scheme; unresolved keeps raw url and lists missing', () => {
   const v = view(workspace());
-  assert.deepEqual(row(v, 'a'), { id: 'a', method: 'GET', name: 'Users', url: 'localhost:3000/api/users', status: 500, path: 'My Collection', enabled: false, missing: [], problem: null });
+  assert.deepEqual(row(v, 'a'), { id: 'a', method: 'GET', name: 'Users', url: 'localhost:3000/api/users', shortUrl: '/api/users', status: 500, path: 'My Collection', enabled: false, missing: [], problem: null });
   assert.deepEqual(row(v, 'c').missing, ['nope']);
   assert.equal(row(v, 'c').url, '{{nope}}/x');
 });
@@ -165,4 +165,53 @@ test('a request left in a deleted folder has no folder path', () => {
 test('Greek final sigma matches either case', () => {
   assert.deepEqual(matchRanges('ΟΔΟΣ', 'οδος'), [[0, 4]]);
   assert.deepEqual(matchRanges('οδος', 'ΟΔΟΣ'), [[0, 4]]);
+});
+
+function rowsFor(requests) {
+  let ws = emptyWorkspace();
+  const parentId = children(ws, null)[0].id;
+  requests.forEach(([url, method = 'GET'], i) => {
+    ws = applyMutation(ws, { type: 'addItem', id: `r${i}`, itemType: 'request', parentId, name: `R${i}`, fields: { url, method } }, 1).workspace;
+  });
+  return popupView(ws, { mockSites: [], tabOrigin: null, hasAccess: false }).rows;
+}
+const shortUrls = requests => rowsFor(requests).map(r => r.shortUrl);
+
+test('short url drops the host and keeps path, query and fragment', () => {
+  assert.deepEqual(
+    shortUrls([['https://api.x.test/a/b?page=1#top'], ['https://api.x.test'], ['https://api.x.test/'], ['api.x.test?q=1'], ['[::1]:3000/v6'], ['/relative/path']]),
+    ['/a/b?page=1#top', '/', '/', '/?q=1', '/v6', '/relative/path'],
+  );
+});
+
+test('short url keeps the host when another host has the same method and path', () => {
+  assert.deepEqual(
+    shortUrls([['https://api.x.test/orders', 'POST'], ['https://staging.x.test/orders', 'POST'], ['https://other.x.test/orders', 'GET']]),
+    ['api.x.test/orders', 'staging.x.test/orders', '/orders'],
+  );
+  assert.deepEqual(shortUrls([['http://localhost:3000/a'], ['http://localhost:4000/a']]), ['localhost:3000/a', 'localhost:4000/a']);
+});
+
+test('the same host in another case is not a different host', () => {
+  assert.deepEqual(shortUrls([['https://API.x.test/a'], ['https://api.x.test/a']]), ['/a', '/a']);
+});
+
+test('search shows the full url only when the match needs the host', () => {
+  const [row] = rowsFor([['https://api.shop.test/api/orders']]);
+  assert.equal(displayUrl(row, ''), '/api/orders');
+  assert.equal(displayUrl(row, 'orders'), '/api/orders');
+  assert.equal(displayUrl(row, 'api'), '/api/orders');
+  assert.equal(displayUrl(row, 'R0'), '/api/orders');
+  assert.equal(displayUrl(row, 'SHOP'), 'api.shop.test/api/orders');
+  assert.equal(displayUrl(row, 'orders shop'), 'api.shop.test/api/orders');
+  assert.equal(displayUrl(row, 'test/api'), 'api.shop.test/api/orders');
+});
+
+test('filtering still searches the hidden host', () => {
+  const rows = rowsFor([['https://api.shop.test/orders']]);
+  assert.equal(filterRows(rows, 'shop').length, 1);
+});
+
+test('a request that cannot run does not force others to show their host', () => {
+  assert.equal(rowsFor([['https://api.x.test/a'], ['{{nope}}/a']])[0].shortUrl, '/a');
 });

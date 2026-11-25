@@ -1,6 +1,6 @@
 // Toolbar popup: switch mocks on and off. Reads and writes go through the background worker.
 
-import { popupView, siteStep, filterRows, matchRanges } from '../lib/popup-model.js';
+import { popupView, siteStep, filterRows, matchRanges, displayUrl } from '../lib/popup-model.js';
 import { grantPath } from '../lib/grant-follow-up.js';
 import { el, icon } from '../panel/ui.js';
 
@@ -67,7 +67,7 @@ function createRow(id) {
     enabled: false,
   };
   row.node = el('li', {},
-    el('label', { class: 'row' }, row.method, el('span', { class: 'info' }, row.name, row.url, row.path = el('span', { class: 'path' }, icon('folder'), row.pathText)), row.status, row.input),
+    row.label = el('label', { class: 'row' }, row.method, el('span', { class: 'info' }, row.name, row.url, row.path = el('span', { class: 'path' }, icon('folder'), row.pathText)), row.status, row.input),
     row.error);
   row.input.addEventListener('change', () => toggle(id, row.input.checked));
   return row;
@@ -81,7 +81,9 @@ function paintRow(row, data, shown) {
   highlight(row.method, data.method, q);
   highlight(row.name, data.name, q);
   row.url.className = problem ? 'url warn' : 'url';
-  highlight(row.url, problem ?? data.url, q);
+  highlight(row.url, problem ?? displayUrl(data, q), q);
+  // The row shows a shortened, clipped url; hovering gives both in full.
+  row.label.title = [data.name, data.url].filter(Boolean).join('\n');
   row.path.hidden = !query.trim() || !data.path;
   highlight(row.pathText, data.path, q);
   row.status.className = data.status >= 400 ? 'status bad' : 'status';

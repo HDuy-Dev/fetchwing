@@ -165,3 +165,14 @@ Load unpacked, rồi: bấm icon thấy popup; bật mock trên site mới, cấ
 - [ ] **Step 6:** Chromium với extension thật: focus khi mở; gõ lọc đúng; tên `<img onerror>` vẫn là chữ khi tô sáng; Esc xóa chữ không đóng; × đưa focus về ô; không khớp hiện nút Clear; bật/tắt dòng đang lọc vẫn chạy; footer đếm đúng; ảnh sáng/tối. `npm test`, `npm run build` PASS. Commit `feat: add a search box to the popup`.
 
 Review Focus thêm: từ khóa có ký tự regex (`(`, `.*`, `[`) không làm lỗi; dữ liệu đổi qua `storage.onChanged` khi đang tìm thì danh sách vẫn được lọc theo từ khóa hiện tại.
+
+### Task 5: Dòng rút gọn và popup rộng hơn
+
+**Files:** `src/lib/popup-model.js`, `src/popup/popup.js`, `src/popup/popup.css`, `tests/popup-model.test.js`
+
+**Interfaces:** mỗi row của `popupView` thêm `shortUrl: string`; `displayUrl(row, query): string` trả `row.url` hoặc `row.shortUrl`. `row.url` giữ nguyên (lọc và aria-label dùng nó).
+
+- [ ] Test (RED): path-only; chỉ có host → "/"; cùng method + path khác host → giữ host; khác method hoặc cùng host viết hoa → rút gọn; URL tương đối; `displayUrl` theo từ khóa.
+- [ ] Code `shortUrl`, `displayUrl`; chạy `npm test` (GREEN).
+- [ ] CSS: body 480px, `max-height: 600px`, cột flex; danh sách tối đa 470px và co được; tên và URL cắt "…"; dòng cao tối thiểu 42px. `popup.js`: vẽ `displayUrl`, đặt `title` cho dòng.
+- [ ] Kiểm trong Chromium: kích thước (có và không banner), cắt chữ, tooltip, tìm theo host; chạy lại các script e2e cũ.

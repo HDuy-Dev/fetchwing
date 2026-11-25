@@ -45,6 +45,25 @@ function folderPath(ws, request) {
   return names.join(' / ');
 }
 
+// Splits a URL into its host (with any scheme left on it) and the rest.
+function splitUrl(url) {
+  const [, host, rest] = /^((?:[a-z][a-z0-9+.-]*:\/\/)?[^/?#]*)(.*)$/is.exec(url);
+  return { host: host.toLowerCase(), rest: rest.startsWith('/') ? rest : `/${rest}` };
+}
+
+// Gives each row a url without the host, except where another host has the same
+// method and path, since the host is then what tells the two apart.
+function withShortUrls(rows) {
+  const hosts = new Map(); // "METHOD rest" -> hosts using it
+  const parsed = rows.map(row => {
+    const parts = splitUrl(row.url);
+    const key = `${row.method} ${parts.rest}`;
+    if (!row.problem) hosts.set(key, (hosts.get(key) ?? new Set()).add(parts.host));
+    return { row, key, rest: parts.rest };
+  });
+  return parsed.map(({ row, key, rest }) => ({ ...row, shortUrl: hosts.get(key)?.size > 1 ? row.url : rest }));
+}
+
 export function popupView(ws, { mockSites, tabOrigin, hasAccess }) {
   const vars = envVars(ws);
   const rows = requestsInTreeOrder(ws)
@@ -68,7 +87,7 @@ export function popupView(ws, { mockSites, tabOrigin, hasAccess }) {
   const web = isWebOrigin(tabOrigin);
   const siteActive = web && hasAccess && mockSites.includes(tabOrigin);
   return {
-    rows,
+    rows: withShortUrls(rows),
     liveCount,
     idleCount: rows.filter(r => r.enabled).length - liveCount,
     envName: env && !env.deleted ? env.name : 'No environment',
@@ -91,6 +110,13 @@ export function filterRows(rows, query) {
     const text = fold(`${r.method} ${r.name} ${r.problem ?? r.url} ${r.path}`);
     return terms.every(t => text.includes(t));
   });
+}
+
+// The short url, or the full one when a search word is only visible there.
+export function displayUrl(row, query) {
+  const full = fold(row.url);
+  const short = fold(row.shortUrl);
+  return words(query).some(t => full.includes(t) && !short.includes(t)) ? row.url : row.shortUrl;
 }
 
 // Where the query's words appear in text, as sorted, merged [start, end) ranges.

@@ -5,7 +5,8 @@
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
-body { width: 360px; margin: 0; background: var(--surface); color: var(--text); font: 13px/1.45 Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+/* Chrome caps a popup at 600px; the list gives up height when a banner or error appears. */
+body { display: flex; flex-direction: column; width: 480px; max-height: 600px; margin: 0; background: var(--surface); color: var(--text); font: 13px/1.45 Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
 svg.i { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
 header { display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 12px; border-bottom: 1px solid var(--divider); }
@@ -19,14 +20,18 @@ h1 { margin: 0; font-size: 13px; font-weight: 700; }
 .push { margin-left: auto; }
 .banner { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--divider); background: var(--mock-soft); font-size: 12px; overflow-wrap: anywhere; }
 
-ul { list-style: none; margin: 0; padding: 4px; max-height: 440px; overflow-y: auto; }
+body > :not(main) { flex-shrink: 0; }
+main { display: flex; flex-direction: column; min-height: 0; }
+ul { list-style: none; min-height: 0; margin: 0; padding: 4px; max-height: 470px; overflow-y: auto; }
 ul:empty { display: none; }
-.row { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 6px 8px; border-radius: 6px; cursor: pointer; }
+.row { display: flex; align-items: center; gap: 10px; min-height: 42px; padding: 3px 8px; border-radius: 6px; cursor: pointer; }
 .row:hover { background: var(--hover); }
 .m { font: 700 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace; width: 46px; flex-shrink: 0; color: var(--muted); }
 .m.GET { color: var(--get); } .m.POST { color: var(--post); } .m.PUT { color: var(--put); } .m.PATCH { color: var(--patch); } .m.DELETE { color: var(--delete); }
 .info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .name, .url { overflow-wrap: anywhere; }
+/* One line each; a "Not running" reason wraps so it can be read whole. */
+.name, .url:not(.warn) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .name { font-weight: 600; }
 .url { font: 11.5px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--muted); }
 .url.warn { color: var(--warn); }
