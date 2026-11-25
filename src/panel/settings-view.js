@@ -3,7 +3,7 @@
 import { el, icon, openDialog } from './ui.js';
 import { ensureOrigin } from './permissions.js';
 
-const send = msg => chrome.runtime.sendMessage(msg);
+import { send } from './runtime.js';
 
 export function openSettings(state) {
   openDialog((box, close) => {

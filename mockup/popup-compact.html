@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Popup compact mockup</title>
+<style>
+  /* Tokens copied from src/popup/popup.css */
+  [data-mode="light"] { --surface:#ffffff; --surface-2:#f0f3f8; --bg:#f5f7fb; --divider:#d8dfea; --control:#8592a6; --text:#172033; --muted:#4b586c; --get:#15803d; --post:#a16207; --put:#1d4ed8; --delete:#b91c1c; --mock:#be123c; --err:#b91c1c; --warn:#8a5300; --thumb-on:#ffffff; --hl:rgba(15,118,110,.28); }
+  [data-mode="dark"] { --surface:#151d2b; --surface-2:#1b2536; --bg:#0f1520; --divider:#2a3648; --control:#5b6b82; --text:#e6ebf2; --muted:#a3afc2; --get:#4ade80; --post:#fbbf24; --put:#60a5fa; --delete:#f87171; --mock:#fb7185; --err:#f87171; --warn:#fbbf24; --thumb-on:#0f1520; --hl:rgba(45,212,191,.28); }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 20px; background: #7a8494; font: 13px/1.45 Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  .sheet { display: flex; gap: 20px; align-items: flex-start; }
+  figure { margin: 0; flex-shrink: 0; } figcaption { color: #fff; font-weight: 600; margin-bottom: 8px; min-height: 38px; }
+  figcaption small { display: block; font-weight: 400; }
+  .popup { width: 360px; display: flex; flex-direction: column; background: var(--surface); color: var(--text); border-radius: 8px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,.35); }
+  .wide { width: 480px; }
+  svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+  header { display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 12px; border-bottom: 1px solid var(--divider); }
+  .logo { width: 22px; height: 22px; border-radius: 6px; background: linear-gradient(135deg,#2dd4bf,#0f766e); }
+  h1 { margin: 0; font-size: 13px; }
+  .count { color: var(--mock); font-weight: 600; font-size: 12px; }
+  .btn { margin-left: auto; height: 30px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--control); background: var(--surface-2); color: var(--text); font: inherit; }
+  .search { display: flex; align-items: center; gap: 8px; margin: 8px 12px 4px; height: 34px; padding: 0 10px; border: 1px solid var(--control); border-radius: 8px; background: var(--bg); color: var(--muted); }
+  .search b { font-weight: 400; color: var(--text); }
+  ul { list-style: none; margin: 0; padding: 4px; overflow: hidden; }
+  .now ul { max-height: 440px; } .wide ul { max-height: 470px; }
+  .row { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 6px 8px; border-radius: 6px; }
+  .a .row { min-height: 42px; padding-block: 3px; }
+  .b .row { min-height: 34px; padding-block: 2px; }
+  .m { font: 700 11px ui-monospace, Menlo, monospace; width: 46px; flex-shrink: 0; }
+  .GET { color: var(--get); } .POST { color: var(--post); } .PUT { color: var(--put); } .DELETE { color: var(--delete); }
+  .info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .name { font-weight: 600; overflow-wrap: anywhere; }
+  .url { font: 11.5px/1.45 ui-monospace, Menlo, monospace; color: var(--muted); overflow-wrap: anywhere; }
+  .a .name, .b .name, .a .url:not(.warn) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .url.warn { color: var(--warn); }
+  .path { font-size: 11.5px; color: var(--muted); }
+  .status { font: 600 11px ui-monospace, Menlo, monospace; color: var(--muted); padding: 2px 5px; border: 1px solid var(--divider); border-radius: 4px; }
+  .status.bad { color: var(--err); border-color: var(--err); }
+  .switch { width: 34px; height: 20px; border-radius: 10px; background: var(--control); position: relative; flex-shrink: 0; }
+  .switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; border-radius: 50%; background: #fff; }
+  .switch.on { background: var(--mock); } .switch.on::after { left: 17px; background: var(--thumb-on); }
+  mark { background: var(--hl); color: inherit; border-radius: 2px; }
+  footer { padding: 8px 12px; border-top: 1px solid var(--divider); background: var(--bg); color: var(--muted); font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="sheet" id="sheet"></div>
+<script>
+  // method, name, host, path, status, on, folder, problem
+  const API = 'api.example.com';
+  const all = [
+    ['GET', 'List users', API, '/users', 200, true, 'Shop API'],
+    ['GET', 'User detail', API, '/users/42', 200, false, 'Shop API'],
+    ['POST', 'Create order', API, '/orders', 500, false, 'Shop API / Orders'],
+    ['GET', 'Order detail', API, '/v2/accounts/8f31c2aa-77/orders/19ab04/items?expand=product,price', 200, true, 'Shop API / Orders'],
+    ['POST', 'Create order', 'staging.example.com', '/orders', 201, false, 'Staging / Orders'],
+    ['PUT', 'Update order', API, '/orders/19ab04', 200, false, 'Shop API / Orders'],
+    ['DELETE', 'Remove cart item', API, '/cart/42', 204, false, 'Shop API / Cart'],
+    ['GET', 'Cart', API, '/cart', 200, true, 'Shop API / Cart'],
+    ['POST', 'Add cart item', API, '/cart', 201, false, 'Shop API / Cart'],
+    ['GET', 'Payment methods', '', '', 200, true, 'Shop API / Billing', 'Not running · Unresolved variable: billingUrl'],
+    ['POST', 'Login', API, '/auth/login', 200, false, 'Shop API / Auth'],
+    ['GET', 'Products', API, '/products?page=1', 200, false, 'Shop API / Catalog'],
+    ['GET', 'Product detail', API, '/products/7', 404, false, 'Shop API / Catalog'],
+    ['GET', 'Categories', API, '/categories', 200, false, 'Shop API / Catalog'],
+  ];
+  // Compact line: path only, unless another row has the same method and path on a different host.
+  const shortUrl = (r, q) => {
+    const clash = all.some(o => o !== r && o[0] === r[0] && o[3] === r[3] && o[2] !== r[2]);
+    return clash || (q && r[2].includes(q)) ? r[2] + r[3] : r[3];
+  };
+  const hl = (t, q) => q ? t.replace(new RegExp(q, 'gi'), m => `<mark>${m}</mark>`) : t;
+  const popup = (kind, q = '') => {
+    const rows = all.filter(r => !q || r.join(' ').toLowerCase().includes(q));
+    return `<div class="popup ${kind === 'now' ? 'now' : `wide ${kind}`}">
+      <header><span class="logo"></span><h1>Fetchwing</h1><span class="count">3 on · 1 not running</span><button class="btn">Pause all</button></header>
+      <div class="search">${q ? `<b>${q}</b>` : 'Search requests'}</div>
+      <ul>${rows.map(r => {
+        const [m, name, host, path, status, on, folder, problem] = r;
+        const line = problem ? `<span class="url warn">${problem}</span>`
+          : kind === 'b' ? '' : `<span class="url">${hl(kind === 'now' ? host + path : shortUrl(r, q), q)}</span>`;
+        return `<li><div class="row"><span class="m ${m}">${m}</span>
+          <span class="info"><span class="name">${hl(name, q)}</span>${line}${q ? `<span class="path">${hl(folder, q)}</span>` : ''}</span>
+          <span class="status ${status >= 400 ? 'bad' : ''}">${status}</span><span class="switch ${on ? 'on' : ''}"></span></div></li>`;
+      }).join('')}</ul>
+      <footer>${q ? `${rows.length} of ${all.length} requests · ` : ''}Env <b>Local</b></footer></div>`;
+  };
+  const states = [
+    ['now', 'dark', 'Hiện tại', 'Rộng 360, URL đầy đủ'],
+    ['a', 'dark', 'A (đề xuất): hai dòng, chỉ path', 'Rộng 480. Host chỉ hiện khi cần phân biệt'],
+    ['b', 'dark', 'B: một dòng, ẩn URL', 'Rộng 480. Rê chuột mới thấy URL'],
+    ['a', 'light', 'A khi tìm "staging"', 'Khớp ở host thì hiện host', 'staging'],
+  ];
+  document.getElementById('sheet').innerHTML = states.map(([kind, mode, title, sub, q]) =>
+    `<figure data-mode="${mode}"><figcaption>${title}<small>${sub}</small></figcaption>${popup(kind, q)}</figure>`).join('');
+</script>
+</body>
+</html>

@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Popup edit button mockup</title>
+<style>
+  /* Tokens copied from src/popup/popup.css */
+  [data-mode="light"] { --surface:#ffffff; --surface-2:#f0f3f8; --bg:#f5f7fb; --hover:#e9eef6; --divider:#d8dfea; --control:#8592a6; --text:#172033; --muted:#4b586c; --accent:#0f766e; --get:#15803d; --post:#a16207; --mock:#be123c; --err:#b91c1c; --thumb-on:#ffffff; }
+  [data-mode="dark"] { --surface:#151d2b; --surface-2:#1b2536; --bg:#0f1520; --hover:#222e42; --divider:#2a3648; --control:#5b6b82; --text:#e6ebf2; --muted:#a3afc2; --accent:#2dd4bf; --get:#4ade80; --post:#fbbf24; --mock:#fb7185; --err:#f87171; --thumb-on:#0f1520; }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 20px; background: #7a8494; font: 13px/1.45 Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  .sheet { display: flex; gap: 20px; align-items: flex-start; }
+  figure { margin: 0; } figcaption { color: #fff; font-weight: 600; margin-bottom: 8px; }
+  .popup { width: 480px; background: var(--surface); color: var(--text); border-radius: 8px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,.35); }
+  header { display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 12px; border-bottom: 1px solid var(--divider); }
+  .logo { width: 22px; height: 22px; border-radius: 6px; background: linear-gradient(135deg,#2dd4bf,#0f766e); }
+  h1 { margin: 0; font-size: 13px; } .count { color: var(--mock); font-weight: 600; font-size: 12px; }
+  ul { list-style: none; margin: 0; padding: 4px; }
+  .row { display: flex; align-items: center; gap: 10px; min-height: 42px; padding: 3px 8px; border-radius: 6px; }
+  .row.hover { background: var(--hover); }
+  .m { font: 700 11px ui-monospace, Menlo, monospace; width: 46px; flex-shrink: 0; }
+  .GET { color: var(--get); } .POST { color: var(--post); }
+  .info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .name { font-weight: 600; } .url { font: 11.5px ui-monospace, Menlo, monospace; color: var(--muted); }
+  /* NEW: edit button */
+  .edit { display: grid; place-items: center; width: 28px; height: 28px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--muted); }
+  .edit.hot { border-color: var(--control); background: var(--surface-2); color: var(--text); }
+  .edit.focus { outline: 2px solid var(--accent); outline-offset: 1px; color: var(--text); }
+  .edit svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .tip { position: absolute; right: -6px; top: 32px; z-index: 1; white-space: nowrap; font-size: 11.5px; background: #111827; color: #fff; padding: 3px 7px; border-radius: 4px; }
+  .editwrap { position: relative; }
+  .status { font: 600 11px ui-monospace, Menlo, monospace; color: var(--muted); padding: 2px 5px; border: 1px solid var(--divider); border-radius: 4px; }
+  .status.bad { color: var(--err); border-color: var(--err); }
+  .switch { width: 34px; height: 20px; border-radius: 10px; background: var(--control); position: relative; flex-shrink: 0; }
+  .switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; border-radius: 50%; background: #fff; }
+  .switch.on { background: var(--mock); } .switch.on::after { left: 17px; background: var(--thumb-on); }
+  footer { padding: 8px 12px; border-top: 1px solid var(--divider); background: var(--bg); color: var(--muted); font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="sheet" id="sheet"></div>
+<script>
+  const pencil = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4zM13.5 6.500l4 4"/></svg>';
+  const rows = [['GET','List users','/users',200,true],['POST','Create order','api.example.com/orders',500,false],['GET','Order detail','/v2/orders/8f31c2/items',200,true],['POST','Create order','staging.example.com/orders',201,false]];
+  const popup = () => `<div class="popup"><header><span class="logo"></span><h1>Fetchwing</h1><span class="count">2 on</span></header>
+    <ul>${rows.map(([m,n,u,s,on], i) => `<li><div class="row ${i === 1 ? 'hover' : ''}"><span class="m ${m}">${m}</span>
+      <span class="info"><span class="name">${n}</span><span class="url">${u}</span></span>
+      <span class="editwrap"><button class="edit ${i === 1 ? 'hot' : i === 3 ? 'focus' : ''}" aria-label="Edit mock: ${n}">${pencil}</button>${i === 1 ? '<span class="tip">Edit mock</span>' : ''}</span>
+      <span class="status ${s >= 400 ? 'bad' : ''}">${s}</span><span class="switch ${on ? 'on' : ''}"></span></div></li>`).join('')}</ul>
+    <footer>Env <b>Local</b></footer></div>`;
+  document.getElementById('sheet').innerHTML = [['dark','Tối: dòng 2 đang rê chuột, dòng 4 focus bằng bàn phím'],['light','Sáng']]
+    .map(([mode, title]) => `<figure data-mode="${mode}"><figcaption>${title}</figcaption>${popup()}</figure>`).join('');
+</script>
+</body>
+</html>

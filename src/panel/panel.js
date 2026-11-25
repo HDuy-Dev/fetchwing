@@ -3,6 +3,7 @@
 import { children, newId, pathOf, liveRequests, liveEnvironments } from '../lib/model.js';
 import { parseCurl, splitCurlCommands } from '../lib/curl.js';
 import { envVars, resolveVars } from '../lib/vars.js';
+import { isListedMock } from '../lib/mocks.js';
 import { renderTree } from './tree.js';
 import { renderTabs } from './tabs.js';
 import { openSearch } from './search.js';
@@ -11,11 +12,13 @@ import { renderResponse } from './response-view.js';
 import { renderMockEditor, mockFromResponse, setMockOn } from './mock-editor.js';
 import { openEnvironments } from './env-editor.js';
 import { openSettings } from './settings-view.js';
+import { editorParams } from '../lib/editor-window.js';
 import { ensureOrigin } from './permissions.js';
-import { el, icon, iconButton, toast, showMenu, openDialog } from './ui.js';
+import { el, icon, iconButton, toast, showMenu, openDialog, dismissDialog } from './ui.js';
 
 const $ = id => document.getElementById(id);
-const send = msg => chrome.runtime.sendMessage(msg);
+import { send } from './runtime.js';
+import { GONE_ERROR } from '../lib/runtime-send.js';
 const store = {
   get(key, fallback) { try { return JSON.parse(localStorage.getItem(`fw.${key}`)) ?? fallback; } catch { return fallback; } },
   set(key, value) { try { localStorage.setItem(`fw.${key}`, JSON.stringify(value)); } catch {} },
@@ -30,6 +33,7 @@ const ERRORS = {
 
 const state = {
   ws: null,
+  isEditorWindow: false, // set below, once the URL is read
   mockSites: [],
   section: store.get('section', 'collections'),
   selectedId: store.get('selected', null),
@@ -44,7 +48,13 @@ const state = {
   sync: { state: 'off', email: null, error: null, lastSyncAt: null },
 };
 
-export const inspectedTabId = chrome.devtools?.inspectedWindow?.tabId ?? (Number(new URLSearchParams(location.search).get('tabId')) || null);
+const params = editorParams(location.search);
+// Opened by the popup to edit one mock, outside DevTools.
+const isEditorWindow = params.isEditor && !chrome.devtools;
+state.isEditorWindow = isEditorWindow;
+export let inspectedTabId = chrome.devtools?.inspectedWindow?.tabId ?? params.tabId;
+// The request to show once the workspace has loaded; a later click replaces it.
+let pendingReveal = isEditorWindow && params.requestId ? { requestId: params.requestId, tabId: params.tabId } : null;
 
 // Theme is chosen in the panel; the first time it starts from the DevTools theme.
 const devtoolsDark = chrome.devtools?.panels?.themeName === 'dark' || (!chrome.devtools?.panels && matchMedia('(prefers-color-scheme: dark)').matches);
@@ -174,7 +184,7 @@ async function createItem(itemType, parentId, name, fields) {
   if (itemType !== 'collection' && !parentId) return null;
   const id = await addItem(itemType, parentId, name, fields);
   if (!id) return null;
-  state.ws = (await send({ type: 'getWorkspace' })).workspace;
+  state.ws = (await send({ type: 'getWorkspace' })).workspace ?? state.ws;
   if (parentId) expandPath(parentId);
   if (itemType !== 'request') state.expanded.add(id);
   store.set('expanded', [...state.expanded]);
@@ -293,7 +303,7 @@ async function importCurlText(text) {
     const id = await addItem('request', parentId, requestName(p.url), fieldsFrom(p));
     if (id) { added++; first ??= id; }
   }
-  state.ws = (await send({ type: 'getWorkspace' })).workspace;
+  state.ws = (await send({ type: 'getWorkspace' })).workspace ?? state.ws;
   expandPath(parentId);
   if (first) select(first);
   toast(skipped ? `Imported ${added}, skipped ${skipped}` : `Imported ${added}`, 4000);
@@ -326,6 +336,7 @@ async function sendActive() {
     toast('Allow access in the window that opened, then Send again.', 5000);
     return;
   }
+  if (access === 'gone') return fail('Fetchwing was reloaded', GONE_ERROR);
   if (access === 'denied') return fail('No access', `Fetchwing needs permission to reach ${origin}`);
   state.editor?.flush();
   state.responses.set(item.id, { loading: true, startedAt: Date.now() });
@@ -347,7 +358,7 @@ async function addVariable(name) {
     const res = await mutate({ type: 'addEnvironment', id, name: 'Local' });
     if (!res.ok) return;
     await mutate({ type: 'setActiveEnv', id });
-    state.ws = (await send({ type: 'getWorkspace' })).workspace;
+    state.ws = (await send({ type: 'getWorkspace' })).workspace ?? state.ws;
   }
   openEnvironments(state, { addVar: name });
 }
@@ -544,7 +555,7 @@ function renderSide() {
     actions.append(iconButton('plus', 'New environment', async () => {
       const id = newId();
       const res = await mutate({ type: 'addEnvironment', id, name: 'New environment' });
-      if (res.ok) { state.ws = (await send({ type: 'getWorkspace' })).workspace; openEnvironments(state, { envId: id }); }
+      if (res.ok) { state.ws = (await send({ type: 'getWorkspace' })).workspace ?? state.ws; openEnvironments(state, { envId: id }); }
     }));
     const envs = liveEnvironments(state.ws);
     if (!envs.length) content.append(el('div', { class: 'side-empty' }, 'No environments yet.'));
@@ -560,8 +571,7 @@ function renderSide() {
   } else {
     const on = mocksOn();
     actions.append(iconButton('pause', 'Pause all', pauseAll, { disabled: !on.length }));
-    // Requests that have a mock set up (on, or edited away from the default).
-    const mocks = liveRequests(state.ws).filter(r => r.mock.enabled || r.mock.body || r.mock.headers.length);
+    const mocks = liveRequests(state.ws).filter(isListedMock);
     if (!mocks.length) content.append(el('div', { class: 'side-empty' }, 'No mocks yet.'));
     for (const r of mocks) {
       const sw = el('input', {
@@ -655,6 +665,39 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (changes.workspace || changes.mockSites) render();
 });
 
+// ---------- editor window ----------
+
+async function refreshOrigin() {
+  state.inspectedOrigin = await inspectedOrigin();
+}
+
+// Shows a request's mock, as asked by the popup's edit button.
+async function showPendingReveal() {
+  if (!state.ws || !pendingReveal) return;
+  const { requestId, tabId } = pendingReveal;
+  pendingReveal = null;
+  if (tabId) inspectedTabId = tabId;
+  // The popup may know of a request this window hasn't been told about yet.
+  if (!isLiveRequest(requestId)) state.ws = (await send({ type: 'getWorkspace' })).workspace ?? state.ws;
+  if (!isLiveRequest(requestId)) return toast(ERRORS.not_found);
+  dismissDialog();
+  state.section = 'collections';
+  state.pane = 'mock';
+  expandPath(requestId);
+  select(requestId);
+  await refreshOrigin();
+}
+
+if (isEditorWindow) {
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== 'session' || !changes.reveal?.newValue) return;
+    pendingReveal = changes.reveal.newValue;
+    showPendingReveal();
+  });
+  // The web tab may have moved on while this window was in the background.
+  window.addEventListener('focus', () => { if (state.ws) refreshOrigin(); });
+}
+
 // Known up front so a click can ask for permission without awaiting first
 // (Chrome only shows the prompt during the click itself).
 chrome.devtools?.network?.onNavigated.addListener(url => {
@@ -663,6 +706,7 @@ chrome.devtools?.network?.onNavigated.addListener(url => {
 
 async function init() {
   const res = await send({ type: 'getWorkspace' });
+  if (!res.workspace) return;
   state.ws = res.workspace;
   state.mockSites = res.mockSites;
   state.inspectedOrigin = await inspectedOrigin();
@@ -671,6 +715,7 @@ async function init() {
   renderSync();
   if (!state.expanded.size) for (const c of children(state.ws, null)) state.expanded.add(c.id);
   render();
+  await showPendingReveal();
 }
 
 init();

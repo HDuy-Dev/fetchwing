@@ -1,6 +1,7 @@
 // Mock pane: switch, Status / Delay / Content-Type, and a body viewer that toggles to an editor.
 
-import { el, debounce, iconButton } from './ui.js';
+import { el, debounce, iconButton, toast } from './ui.js';
+import { unknownSiteNotice } from '../lib/editor-window.js';
 import { ensureOrigin } from './permissions.js';
 import { prettyBody } from './response-view.js';
 import { parseJson, renderJsonView } from './json-view.js';
@@ -15,7 +16,8 @@ export function mockFromResponse(r) {
   };
 }
 
-const send = msg => chrome.runtime.sendMessage(msg);
+import { send } from './runtime.js';
+import { GONE_ERROR } from '../lib/runtime-send.js';
 const host = origin => origin.replace(/^https?:\/\//, '');
 let current = null; // { id, refresh(item, state) }
 
@@ -26,13 +28,17 @@ export async function setMockOn(id, enable, state) {
     const origin = state.inspectedOrigin;
     if (origin && /^https?:/.test(origin) && !state.mockSites.includes(origin)) {
       const access = await ensureOrigin(origin);
+      if (access === 'gone') return GONE_ERROR;
       if (access === 'pending') return 'Allow access in the window that opened, then turn the mock on again.';
       if (access !== 'granted') return `Fetchwing needs permission to run on ${origin} to mock its requests.`;
       await send({ type: 'addMockSite', origin });
     }
   }
   const res = await send({ type: 'mutate', mutation: { type: 'setMockEnabled', id, enabled: enable } });
-  return res?.ok ? null : (res?.error ?? 'Could not change the mock.');
+  if (!res?.ok) return res?.error ?? 'Could not change the mock.';
+  const notice = enable ? unknownSiteNotice({ isEditorWindow: state.isEditorWindow, origin: state.inspectedOrigin }) : null;
+  if (notice) toast(notice, 8000);
+  return null;
 }
 
 export function renderMockEditor(pane, item, state) {

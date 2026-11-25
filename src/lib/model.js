@@ -125,7 +125,11 @@ export function applyMutation(ws, m, now) {
       const item = live(m.id);
       if (!item || item.type !== 'request') return { error: 'not_found' };
       const patch = {};
-      if (m.type === 'setMockEnabled') patch.enabled = Boolean(m.enabled);
+      if (m.type === 'setMockEnabled') {
+        patch.enabled = Boolean(m.enabled);
+        // Remembered so the mock stays in the Mocks lists after it is turned off.
+        if (patch.enabled) patch.everEnabled = true;
+      }
       else for (const k of MOCK_FIELDS) if (k in m.patch) patch[k] = m.patch[k];
       touch(m.id, { mock: { ...item.mock, ...patch } });
       return { workspace: next };

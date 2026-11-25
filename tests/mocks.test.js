@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { emptyWorkspace, applyMutation, children } from '../src/lib/model.js';
-import { deriveActiveMocks, findDuplicate } from '../src/lib/mocks.js';
+import { deriveActiveMocks, findDuplicate, isListedMock } from '../src/lib/mocks.js';
 import { matchKey } from '../src/lib/match.js';
 
 function workspace() {
@@ -47,4 +47,14 @@ test('findDuplicate finds same key ignoring query order', () => {
   w.run({ type: 'setMockEnabled', id: 'a', enabled: true });
   assert.equal(findDuplicate(w.ws, 'b')?.id, 'a');
   assert.equal(findDuplicate(w.ws, 'a'), null);
+});
+
+test('isListedMock keeps a mock listed after it is turned off', () => {
+  const w = workspace();
+  const listed = () => ['a', 'b', 'c'].filter(id => isListedMock(w.ws.items[id]));
+  assert.deepEqual(listed(), ['a']);
+  w.run({ type: 'setMockEnabled', id: 'b', enabled: true });
+  w.run({ type: 'setMockEnabled', id: 'b', enabled: false });
+  w.run({ type: 'disableAllMocks' });
+  assert.deepEqual(listed(), ['a', 'b']);
 });

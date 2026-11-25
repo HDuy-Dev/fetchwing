@@ -32,6 +32,11 @@ export function deriveActiveMocks(ws) {
   return list;
 }
 
+// Requests that belong in the Mocks lists: on, switched on before, or edited away from the default.
+export function isListedMock(r) {
+  return Boolean(r.mock.enabled || r.mock.everEnabled || r.mock.body || r.mock.headers.length);
+}
+
 // Another enabled mock that would answer the same request.
 export function findDuplicate(ws, requestId) {
   const vars = envVars(ws);
