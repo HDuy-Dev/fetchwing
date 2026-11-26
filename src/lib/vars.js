@@ -1,10 +1,10 @@
 // {{name}} environment variables.
 
-const VAR = /\{\{\s*([^{}]+?)\s*\}\}/g;
+export const VAR_PATTERN = /\{\{\s*([^{}]+?)\s*\}\}/g;
 
 export function resolveVars(text, vars) {
   const missing = new Set();
-  const value = String(text ?? '').replace(VAR, (whole, name) => {
+  const value = String(text ?? '').replace(VAR_PATTERN, (whole, name) => {
     if (Object.prototype.hasOwnProperty.call(vars, name)) return vars[name];
     missing.add(name);
     return whole;
