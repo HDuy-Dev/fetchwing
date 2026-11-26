@@ -215,8 +215,8 @@ table.kv tr:hover .row-x, table.kv tr:focus-within .row-x { opacity: 1; }
 .jrow .jc { white-space: pre-wrap; word-break: break-word; }
 .jrow .more { color: var(--faint); background: var(--surface-2); border: 0; border-radius: var(--r-sm); padding: 0 4px; margin: 0 2px; font: inherit; cursor: pointer; }
 .jrow .jtag { margin-left: 8px; padding: 0 6px; border: 1px solid var(--divider); border-radius: var(--r-sm); color: var(--muted); font-size: 11px; user-select: none; }
-.jrow .jedit { margin-left: 4px; padding: 0 4px; border: 0; border-radius: var(--r-sm); background: transparent; color: var(--muted); cursor: pointer; vertical-align: middle; line-height: 1; }
-.jrow .jedit:hover { background: var(--surface-2); color: var(--accent); }
+.jrow .jedit { display: inline-flex; align-items: center; gap: 4px; margin-left: 8px; padding: 0 8px; border: 1px solid var(--control); border-radius: var(--r-sm); background: var(--surface-2); color: var(--text); font: inherit; font-size: 11px; cursor: pointer; user-select: none; }
+.jrow .jedit:hover { background: var(--hover); color: var(--accent); }
 .jrow .jedit .i { width: 13px; height: 13px; }
 .k { color: var(--j-key); } .s { color: var(--j-str); } .n { color: var(--j-num); } .l { color: var(--j-lit); }
 
@@ -240,7 +240,10 @@ table.kv tr:hover .row-x, table.kv tr:focus-within .row-x { opacity: 1; }
 .editor-bar { display: flex; align-items: center; padding: 2px 4px 2px 12px; border-bottom: 1px solid var(--divider); flex-shrink: 0; }
 .editor .json { padding-top: 4px; }
 .edit-title { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; padding-right: 8px; }
-.edit-error { padding: 4px 12px; flex-shrink: 0; }
+.edit-alert { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-shrink: 0; }
+.edit-alert:not(:has(> :not([hidden]))) { display: none; }
+.edit-alert .btn { flex-shrink: 0; margin: 4px 8px 4px auto; }
+.edit-error { padding: 4px 12px; min-width: 0; overflow-wrap: anywhere; }
 .mock-text { flex: 1; min-height: 0; border: 0; resize: none; background: transparent; padding: 8px 12px; font: 12.5px/1.6 var(--mono); outline: none; }
 .mock-headers { display: flex; flex-direction: column; gap: 4px; }
 

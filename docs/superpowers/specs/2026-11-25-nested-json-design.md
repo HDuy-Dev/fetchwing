@@ -34,3 +34,25 @@ API hay trả một field là cả JSON bị đóng thành chuỗi (ví dụ `pr
 
 ## Để người làm tự quyết
 Tên file, hàm, cách vẽ nhãn và nút.
+
+## Bổ sung: sửa cả body ở dạng đã format
+
+### Vì sao
+Nút sửa riêng ở từng chuỗi khó thấy. Cần bấm bút chì lớn của Body là sửa được mọi thứ ở dạng format.
+
+### Cách làm
+- **Đã chọn (1):** bút chì lớn mở cả body đã format, chuỗi JSON được bung ra.
+- Loại (2): sửa ngay trên cây. Nhanh khi đổi một giá trị, nhưng thêm, xóa, dán cả khối vẫn cần ô sửa.
+- Thay cho lý do loại cách B ở trên: rủi ro đóng sai được xử lý bằng các quy tắc dưới đây.
+
+### Hành vi (chỉ khi body là object hoặc array; body khác giữ cách sửa cũ, tự lưu)
+- Ô text hiện body thụt 2 khoảng trắng, mọi tầng chuỗi JSON được bung thành object/array.
+- Có "Cancel" và "Done", chỉ lưu khi bấm "Done" (thay cho tự lưu: JSON gõ dở không đóng lại được). JSON sai thì báo lỗi và không lưu.
+- Field vốn là chuỗi JSON được nhận lại theo đường dẫn key. Nếu ở đó là object/array thì đóng lại thành chuỗi; nếu người dùng gõ thành giá trị khác thì giữ nguyên giá trị đó.
+- Mảng: nếu trong dữ liệu gốc, mọi giá trị object/array ở cùng vị trí của các phần tử đều là chuỗi JSON thì phần tử mới, chèn hay đổi chỗ cũng được đóng thành chuỗi.
+- Không chắc thì không lưu ngay: (a) một field vốn là chuỗi JSON không còn ở đường dẫn cũ (đổi tên, di chuyển, xóa); (b) mảng lẫn cả chuỗi JSON lẫn object thật ở cùng vị trí mà bị thêm, bớt hay đổi chỗ phần tử. Hiện cảnh báo nêu tên field và nút "Save anyway". Sửa tiếp trong ô text thì cảnh báo biến mất.
+- Không sửa gì mà bấm "Done" thì body giữ nguyên từng ký tự. Có sửa thì body ngoài được viết lại: gốc một dòng thì lưu gọn, gốc nhiều dòng thì thụt 2. Chuỗi JSON có nội dung không đổi giữ nguyên văn bản gốc. Không làm tròn số.
+- Mock bị đổi từ nơi khác trong lúc sửa: "Done" cảnh báo "The mock body changed while you were editing" và cần "Save anyway".
+
+### Nút sửa riêng
+Giữ lại, đổi thành nút có viền gồm icon và chữ "Edit" cho dễ thấy.
