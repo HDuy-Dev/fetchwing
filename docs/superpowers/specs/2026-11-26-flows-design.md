@@ -1,6 +1,6 @@
 # Flows: kịch bản API dạng sơ đồ
 
-Ngày: 2026-11-26 · Trạng thái: chờ duyệt · Mockup cuối: `mockup/flows.html` (v8)
+Ngày: 2026-11-26 · Trạng thái: đã duyệt · Mockup cuối: `mockup/flows.html` (v8)
 
 ## 1. Mục đích
 
