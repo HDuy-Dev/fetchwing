@@ -4,6 +4,7 @@ import { MIN_RESPONSE, clampSplit } from '../lib/split.js';
 
 const KEY = 'reqHeight';
 const STEP = 16;
+const DRAG_SLOP = 3; // pointer jitter during a click is not a drag
 
 export function initSplit({ work, req, handle, store }) {
   const limits = () => {
@@ -38,13 +39,14 @@ export function initSplit({ work, req, handle, store }) {
   };
   handle.addEventListener('pointerdown', e => {
     if (e.button !== 0) return;
-    e.preventDefault();
+    e.preventDefault(); // also stops the browser focusing the handle, so do it here
+    handle.focus({ preventScroll: true });
     handle.setPointerCapture(e.pointerId);
     drag = { y: e.clientY, height: req.offsetHeight, moved: false };
     handle.classList.add('dragging');
   });
   handle.addEventListener('pointermove', e => {
-    if (!drag || (!drag.moved && e.clientY === drag.y)) return;
+    if (!drag || (!drag.moved && Math.abs(e.clientY - drag.y) < DRAG_SLOP)) return;
     drag.moved = true;
     resize(drag.height + e.clientY - drag.y);
   });
