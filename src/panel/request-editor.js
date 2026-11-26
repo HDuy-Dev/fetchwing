@@ -1,8 +1,13 @@
 // Request editor: method + URL + Send, missing-variable warning, Params / Headers / Body.
 
 import { el, icon, debounce, METHODS } from './ui.js';
+import { BODY_MODES, bodyBadge, bodylessWarning, blankRowLabels } from '../lib/body-view.js';
 
-const BODY_MODES = [['none', 'None'], ['json', 'JSON'], ['text', 'Text'], ['urlencoded', 'URL-encoded'], ['formdata', 'Form data']];
+const BODY_HINTS = {
+  urlencoded: 'Sent as key=value&key2=value2.',
+  formdata: "Text fields only. File upload isn't supported yet.",
+};
+const RAW_PLACEHOLDERS = { json: '{ "name": "value" }', text: 'Enter the request body' };
 
 // Query string <-> rows, keeping the user's encoding as typed.
 export function splitUrl(url) {
@@ -37,6 +42,14 @@ export function createRequestEditor(container, request, opts) {
   const missingEl = el('div', { class: 'var-warning', role: 'status', hidden: true });
   const tabsEl = el('div', { class: 'subtabs', role: 'tablist' });
   const tabBody = el('div', { class: 'tab-body' });
+  const bodyWarning = el('div', { class: 'var-warning body-warning', role: 'status' });
+
+  const updateBodyWarning = () => {
+    const text = bodylessWarning(draft.method, draft.body.mode);
+    bodyWarning.textContent = '';
+    bodyWarning.hidden = !text;
+    if (text) bodyWarning.append(icon('warn'), text);
+  };
 
   const updateMissing = () => {
     const missing = opts.missingFor(draft.url);
@@ -50,6 +63,7 @@ export function createRequestEditor(container, request, opts) {
   methodSel.addEventListener('change', () => {
     draft.method = methodSel.value;
     methodSel.className = `m ${draft.method}`;
+    updateBodyWarning();
     touch();
   });
   urlInput.addEventListener('input', () => {
@@ -69,12 +83,13 @@ export function createRequestEditor(container, request, opts) {
   };
 
   // rows: [{key, value, enabled?}]. Always ends with a blank row to type into.
-  function kvTable(rows, { onEdit, withEnabled }) {
+  function kvTable(rows, { onEdit, withEnabled, kind = 'field' }) {
+    const blank = blankRowLabels(kind);
     const table = el('table', { class: 'kv' });
     const draw = focusIndex => {
       table.textContent = '';
       table.append(el('thead', {}, el('tr', {},
-        withEnabled ? el('th', {}, el('span', { class: 'sr-only' }, 'On')) : null, el('th', {}, 'Key'), el('th', {}, 'Value'), el('th', {}))));
+        el('th', {}, withEnabled ? el('span', { class: 'sr-only' }, 'On') : null), el('th', {}, 'Key'), el('th', {}, 'Value'), el('th', {}))));
       const body = el('tbody');
       const all = [...rows, null];
       all.forEach((row, i) => {
@@ -90,16 +105,17 @@ export function createRequestEditor(container, request, opts) {
           row[field] = value;
           onEdit();
         };
+        const name = field => (isBlank ? blank[field] : field === 'key' ? 'Key' : 'Value');
         const input = field => el('input', {
-          type: 'text', value: row?.[field] ?? '', placeholder: field === 'key' ? 'Key' : 'Value', 'aria-label': field === 'key' ? 'Key' : 'Value', spellcheck: 'false',
+          type: 'text', value: row?.[field] ?? '', placeholder: name(field), 'aria-label': name(field), spellcheck: 'false',
           dataset: { row: String(i), field },
           oninput: e => commit(field, e.target.value),
         });
-        body.append(el('tr', {},
-          withEnabled ? el('td', { class: 'cb' }, isBlank ? null : el('input', {
+        body.append(el('tr', { class: isBlank ? 'blank' : null },
+          el('td', { class: 'cb' }, isBlank ? icon('plus') : withEnabled ? el('input', {
             type: 'checkbox', class: 'cbx', checked: row.enabled !== false, 'aria-label': 'Enabled',
             onchange: e => { row.enabled = e.target.checked; onEdit(); },
-          })) : null,
+          }) : null),
           el('td', {}, input('key')),
           el('td', {}, input('value')),
           el('td', { class: 'act' }, isBlank ? null : el('button', {
@@ -132,37 +148,56 @@ export function createRequestEditor(container, request, opts) {
         },
       }));
     } else if (tab === 'headers') {
-      tabBody.append(kvTable(draft.headers, { withEnabled: true, onEdit: () => { drawTabs(); touch(); } }));
+      tabBody.append(kvTable(draft.headers, { withEnabled: true, kind: 'header', onEdit: () => { drawTabs(); touch(); } }));
     } else {
-      tabBody.append(el('div', { class: 'body-modes', role: 'radiogroup', 'aria-label': 'Body type' },
-        BODY_MODES.map(([value, label]) => el('label', {},
-          el('input', { type: 'radio', name: 'bodymode', value, checked: draft.body.mode === value, onchange: () => { draft.body.mode = value; touch(); renderTab(); } }),
-          label))));
-      if (draft.body.mode === 'json' || draft.body.mode === 'text') {
-        const area = el('textarea', { class: 'code-area', spellcheck: 'false', 'aria-label': 'Body' });
-        area.value = draft.body.raw;
-        area.addEventListener('input', () => { draft.body.raw = area.value; touch(); });
-        tabBody.append(area);
-        if (draft.body.mode === 'json') {
-          const msg = el('span', { class: 'hint' });
-          tabBody.append(el('div', { class: 'tool-icons', style: 'margin-top:4px' }, el('button', {
-            type: 'button', class: 'ibtn', 'aria-label': 'Format JSON', title: 'Format JSON',
-            onclick: () => {
-              try {
-                area.value = JSON.stringify(JSON.parse(area.value), null, 2);
-                draft.body.raw = area.value;
-                msg.textContent = '';
-                touch();
-              } catch (err) {
-                msg.textContent = `Invalid JSON: ${err.message}`;
-              }
-            },
-          }, icon('pretty')), msg));
-        }
-      } else if (draft.body.mode === 'urlencoded' || draft.body.mode === 'formdata') {
-        tabBody.append(kvTable(draft.body.fields, { withEnabled: true, onEdit: () => touch() }));
-        if (draft.body.mode === 'formdata') tabBody.append(el('div', { class: 'hint' }, 'Text fields only.'));
+      renderBody();
+    }
+  }
+
+  function renderBody() {
+    const { mode } = draft.body;
+    tabBody.append(el('div', { class: 'body-modes', role: 'radiogroup', 'aria-label': 'Body type' },
+      BODY_MODES.map(([value, label]) => el('label', {},
+        el('input', {
+          type: 'radio', name: 'bodymode', value, checked: mode === value,
+          onchange: () => {
+            draft.body.mode = value;
+            touch();
+            drawTabs();
+            renderTab();
+            // The redraw replaced the radio; keep the keyboard on it.
+            tabBody.querySelector(`input[name="bodymode"][value="${value}"]`)?.focus();
+          },
+        }),
+        el('span', {}, label)))), bodyWarning);
+    updateBodyWarning();
+
+    if (mode === 'none') {
+      tabBody.append(el('div', { class: 'hint body-empty' }, 'This request has no body. Pick a type above to add one.'));
+    } else if (mode === 'json' || mode === 'text') {
+      const area = el('textarea', { class: 'code-area', spellcheck: 'false', 'aria-label': 'Body', placeholder: RAW_PLACEHOLDERS[mode] });
+      area.value = draft.body.raw;
+      area.addEventListener('input', () => { draft.body.raw = area.value; touch(); });
+      tabBody.append(area);
+      if (mode === 'json') {
+        const msg = el('span', { class: 'hint', role: 'status' });
+        tabBody.append(el('div', { class: 'body-actions' }, el('button', {
+          type: 'button', class: 'btn btn-small',
+          onclick: () => {
+            try {
+              area.value = JSON.stringify(JSON.parse(area.value), null, 2);
+              draft.body.raw = area.value;
+              msg.textContent = '';
+              touch();
+            } catch (err) {
+              msg.textContent = `Invalid JSON: ${err.message}`;
+            }
+          },
+        }, icon('pretty'), 'Format JSON'), msg));
       }
+    } else {
+      tabBody.append(kvTable(draft.body.fields, { withEnabled: true, onEdit: () => touch() }),
+        el('div', { class: 'hint body-note' }, BODY_HINTS[mode]));
     }
   }
 
@@ -170,13 +205,13 @@ export function createRequestEditor(container, request, opts) {
     tabsEl.textContent = '';
     const params = splitUrl(draft.url).rows.length;
     const headers = draft.headers.filter(h => h.enabled !== false && h.key).length;
-    const hasBody = draft.body.mode !== 'none';
+    const badge = bodyBadge(draft.body.mode);
     for (const [id, label, count] of [['params', 'Params', params], ['headers', 'Headers', headers], ['body', 'Body', 0]]) {
       tabsEl.append(el('button', {
         type: 'button', role: 'tab', class: 'subtab', 'aria-selected': String(tab === id), dataset: { tab: id },
         onclick: () => { tab = id; drawTabs(); renderTab(); },
       }, label, count ? el('span', { class: 'count' }, String(count)) : null,
-      id === 'body' && hasBody ? el('span', { class: 'count' }, draft.body.mode) : null));
+      id === 'body' && badge ? el('span', { class: 'count' }, badge) : null));
     }
   }
 
