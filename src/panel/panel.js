@@ -8,6 +8,7 @@ import { renderTree } from './tree.js';
 import { renderTabs } from './tabs.js';
 import { openSearch } from './search.js';
 import { createRequestEditor } from './request-editor.js';
+import { initSplit } from './split.js';
 import { renderResponse } from './response-view.js';
 import { renderMockEditor, mockFromResponse, setMockOn } from './mock-editor.js';
 import { openEnvironments } from './env-editor.js';
@@ -23,6 +24,8 @@ const store = {
   get(key, fallback) { try { return JSON.parse(localStorage.getItem(`fw.${key}`)) ?? fallback; } catch { return fallback; } },
   set(key, value) { try { localStorage.setItem(`fw.${key}`, JSON.stringify(value)); } catch {} },
 };
+
+initSplit({ work: $('work'), req: $('editor'), handle: $('splitter'), store });
 
 const ERRORS = {
   empty_name: 'Name cannot be empty.',
