@@ -86,6 +86,7 @@ export function createRunner({ flowId, getWs, send, storage, onRecord = () => {}
       return;
     }
     if (active) {
+      if (active.yielded) return; // the earlier run owns the record now
       // Another run's record never takes this run's results.
       if (next?.status === 'running' && startsBefore(next, record)) {
         active.yielded = true;

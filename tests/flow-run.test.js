@@ -307,3 +307,15 @@ test('concurrency 0, negative or NaN behaves like 1', async () => {
     assert.ok(Object.values(result.blocks).every(b => b.state === 'ok'));
   }
 });
+
+test('a throw while starting a later block rejects the run instead of hanging', async () => {
+  const { flow, ws } = diamond();
+  ws.items.rb.headers = null; // resolveRequest throws when b starts, after a answered
+  const f = fakeSend({});
+  const settled = await Promise.race([
+    runFlow({ ...base(), flow, ws, send: f.send }).then(() => 'resolved', e => `rejected: ${e instanceof TypeError}`),
+    new Promise(r => setTimeout(() => r('hung'), 500)),
+  ]);
+  assert.equal(settled, 'rejected: true');
+  assert.equal(f.calls[0].blockId, 'a');
+});

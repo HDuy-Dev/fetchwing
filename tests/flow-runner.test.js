@@ -318,3 +318,24 @@ test('a throw during a run ends the record with a note and removes the listener'
   assert.equal(listeners, 0);
   assert.equal(timers.count(), 0);
 });
+
+test('a throw in a later block ends the record stopped with a note', async () => {
+  const ws = makeWs();
+  const store = sharedStore();
+  const s = controlledSend();
+  const timers = fakeTimers();
+  const runner = createRunner({ flowId: 'f', getWs: () => ws, send: s.send, storage: store.page(), timers });
+  ws.items.rb.headers = null; // b fails to resolve once a has answered
+  const done = runner.run();
+  await tick();
+  s.answer(s.calls[0].key, ok({ t: 'tok' }));
+  await assert.rejects(done);
+  await tick();
+  const rec = store.data['flowRun:f'];
+  assert.equal(rec.status, 'stopped');
+  assert.match(rec.note, /^Run failed: /);
+  assert.equal(runner.isRunning(), false);
+  assert.equal(runner.isLive(), false);
+  assert.equal(timers.count(), 1); // only the abandon watch
+  runner.dispose();
+});

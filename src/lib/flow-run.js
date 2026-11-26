@@ -71,10 +71,19 @@ export function runFlow(opts) {
     else set(id, { state: 'queued' });
   }
 
-  return new Promise(resolve => {
+  // Rejects when the engine itself throws (e.g. a request it can't resolve), so callers never wait forever.
+  return new Promise((resolve, reject) => {
     let inFlight = 0;
     let stopped = false;
     let finished = false;
+
+    const fail = err => {
+      if (finished) return;
+      finished = true;
+      stopped = true;
+      signal?.removeEventListener('abort', onAbort);
+      reject(err);
+    };
 
     const finish = () => {
       if (finished) return;
@@ -129,7 +138,7 @@ export function runFlow(opts) {
         }
         set(id, { ...base, ...result, endMs: at() });
         pump();
-      });
+      }).catch(fail);
     }
 
     async function exec(id, block, request, vars) {
