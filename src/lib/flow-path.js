@@ -69,6 +69,7 @@ export function readOutput(response, path) {
     const hit = (response.headers || []).find(([name]) => String(name).toLowerCase() === want);
     return hit && steps.length === 1 ? { found: true, value: hit[1] } : { found: false };
   }
+  // Non-JSON body: bare `body` yields the raw text; any deeper path is a miss (truncated if the body was cut).
   const miss = () => (response.bodyTruncated ? { error: 'truncated' } : { found: false });
   let json;
   try {

@@ -38,3 +38,10 @@ test('pathFor output parses back to the same keys', () => {
   const p = parsePath(pathFor(['a"b', 2, 'c']));
   assert.deepEqual(p.steps.slice(1), [{ key: 'a"b' }, { index: 2 }, { key: 'c' }]);
 });
+
+test('readOutput on non-JSON and JSON bodies for bare body', () => {
+  const text = res({}, { bodyText: 'plain text' });
+  assert.deepEqual(readOutput(text, 'body'), { found: true, value: 'plain text' });
+  assert.deepEqual(readOutput(text, 'body.a'), { found: false });
+  assert.deepEqual(readOutput(res({ a: 1 }), 'body'), { found: true, value: { a: 1 } });
+});
