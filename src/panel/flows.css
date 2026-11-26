@@ -25,3 +25,75 @@
 .flow-empty .flow-empty-title { color: var(--text); font-weight: 600; }
 .flow-empty .btn-primary { margin-top: 12px; }
 .flow-empty .btn-primary:disabled { opacity: .5; cursor: default; filter: none; }
+.flow-body .flow-empty { pointer-events: none; z-index: 2; }
+.flow-body .flow-empty > * { pointer-events: auto; }
+
+/* ---------- canvas ---------- */
+.canvas { position: absolute; inset: 0; overflow: hidden; cursor: grab; background: var(--bg); touch-action: none; outline: none; }
+.canvas:focus-visible { box-shadow: inset 0 0 0 2px var(--accent-soft); }
+.canvas.drag, .canvas.space { cursor: grabbing; }
+.canvas.space .node { cursor: grabbing; }
+.canvas .grid { position: absolute; inset: 0; pointer-events: none; }
+.canvas .world { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.canvas .zoom { position: absolute; right: 10px; bottom: 10px; z-index: 3; display: flex; border: 1px solid var(--control); border-radius: var(--r-lg); overflow: hidden; background: var(--surface-2); cursor: default; }
+.canvas .zoom button { background: none; border: 0; color: var(--muted); height: 28px; min-width: 30px; padding: 0 8px; font: 12px var(--mono); }
+.canvas .zoom button:hover { background: var(--hover); color: var(--text); }
+.canvas .zoom .pct { min-width: 54px; border-left: 1px solid var(--divider); border-right: 1px solid var(--divider); }
+
+.canvas svg.edges { position: absolute; overflow: visible; pointer-events: none; }
+.canvas svg.edges path { fill: none; stroke-width: 1.6; stroke: var(--control); transition: stroke .2s; }
+.canvas svg.edges path.passed { stroke: var(--accent); }
+.canvas svg.edges path.blocked { stroke: var(--err); stroke-dasharray: 4 3; }
+.canvas svg.edges path.flowing { stroke: var(--accent); stroke-dasharray: 6 4; animation: flow-dash .6s linear infinite; }
+.canvas svg.edges path.sel { stroke: var(--accent); stroke-width: 3; }
+.canvas svg.edges path.linking { stroke: var(--accent); stroke-dasharray: 4 3; }
+.canvas svg.edges path.hit { stroke: transparent; stroke-width: 12; pointer-events: stroke; cursor: pointer; transition: none; }
+@keyframes flow-dash { to { stroke-dashoffset: -10; } }
+.canvas .vlabel { position: absolute; font: 11px var(--mono); padding: 1px 7px; border-radius: 10px; background: var(--surface); border: 1px solid var(--divider); color: var(--muted); white-space: nowrap; transform: translate(-50%, -50%); cursor: pointer; }
+.canvas .vlabel.passed { color: var(--accent); border-color: var(--accent); }
+.canvas .vlabel.sel { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+
+/* Blocks. Overrides the collection tree's .node row styles. */
+.canvas .node { position: absolute; display: block; width: 200px; height: auto; padding: 8px 10px; border-radius: var(--r-lg); background: var(--surface); border: 1px solid var(--divider); box-shadow: var(--shadow); cursor: pointer; user-select: none; white-space: normal; text-align: left; }
+.canvas .node:hover { background: var(--surface); border-color: var(--control); }
+.canvas .node:focus-visible { outline: 2px solid var(--accent-line); outline-offset: 2px; }
+.canvas .node.sel { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.canvas .node.dragging { cursor: grabbing; opacity: .9; z-index: 1; }
+.canvas .node.n-bad { border-color: var(--err); }
+.canvas .node.n-skip { opacity: .6; border-style: dashed; }
+.canvas .node.n-warn { border-color: var(--warn); }
+.canvas .node.n-running { border-color: var(--accent); }
+.canvas .node .t { display: flex; align-items: flex-start; gap: 6px; font-weight: 600; font-size: 12.5px; }
+.canvas .node .t .m { width: auto; margin-top: 2px; }
+.canvas .node .t .nm { min-width: 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; line-height: 1.3; }
+.canvas .node .badge { margin: 2px 0 0 auto; font: 800 9.5px var(--mono); letter-spacing: .05em; padding: 1px 5px; border-radius: var(--r-sm); background: var(--mock-soft); color: var(--mock); border: 1px solid var(--mock); }
+.canvas .node .u { font: 10px var(--mono); letter-spacing: -.02em; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 2px 0 6px; }
+.canvas .node .st { display: flex; align-items: center; gap: 6px; font: 11.5px var(--mono); min-width: 0; }
+.canvas .node .st .txt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.canvas .node .stale { font: 10.5px var(--mono); color: var(--warn); margin-left: auto; flex-shrink: 0; }
+.canvas .node .flags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.canvas .node .flag { font: 10.5px var(--mono); padding: 0 5px; border-radius: var(--r-sm); border: 1px solid currentColor; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.canvas .node .flag.warn { color: var(--warn); }
+.canvas .node .flag.bad { color: var(--err); }
+.canvas .ico { width: 16px; height: 16px; border-radius: 50%; display: inline-grid; place-items: center; font-size: 10px; font-weight: 800; flex-shrink: 0; line-height: 1; }
+.canvas .s-idle { color: var(--faint); } .canvas .s-idle .ico { border: 1.5px solid var(--control); }
+.canvas .s-queued { color: var(--faint); } .canvas .s-queued .ico { border: 1.5px dashed var(--control); }
+.canvas .s-running { color: var(--accent); } .canvas .s-running .ico { border: 2px solid var(--accent-soft); border-top-color: var(--accent); animation: spin .8s linear infinite; }
+.canvas .s-ok { color: var(--ok); } .canvas .s-ok .ico { background: var(--ok); color: var(--bg); }
+.canvas .s-bad { color: var(--err); } .canvas .s-bad .ico { background: var(--err); color: var(--bg); }
+.canvas .s-skip { color: var(--faint); } .canvas .s-skip .ico { border: 1.5px solid var(--faint); }
+.canvas .s-warn { color: var(--warn); } .canvas .s-warn .ico { background: var(--warn); color: var(--bg); }
+.canvas .port { position: absolute; top: 33px; width: 11px; height: 11px; border-radius: 50%; background: var(--surface-2); border: 2px solid var(--control); transform: translateY(-50%); }
+.canvas .port.in { left: -6px; }
+.canvas .port.out { right: -6px; cursor: crosshair; }
+.canvas .port.out:hover { border-color: var(--accent); background: var(--accent-soft); }
+
+/* Zoomed out: name and a large status icon only. */
+.canvas .world.far .node .u, .canvas .world.far .node .st .txt, .canvas .world.far .vlabel,
+.canvas .world.far .node .t .badge, .canvas .world.far .node .stale, .canvas .world.far .node .flags { display: none; }
+.canvas .world.far .node .t { font-size: 16px; padding-right: 26px; }
+.canvas .world.far .node .st { position: absolute; right: 10px; top: 9px; }
+.canvas .world.far .node .ico { width: 22px; height: 22px; font-size: 13px; }
+.canvas .world.far .node.mocked { box-shadow: inset 5px 0 0 var(--mock), var(--shadow); }
+
+.menu button.menu-note { white-space: normal; color: var(--warn); font-size: 12px; padding-top: 0; }

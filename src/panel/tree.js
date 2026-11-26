@@ -92,10 +92,20 @@ export function renderTree(container, ws, selectedId, handlers) {
     });
 
     // Drop on a collection/folder = move inside (last); on a request = before it.
-    row.addEventListener('dragstart', e => { dragId = item.id; e.dataTransfer.effectAllowed = 'move'; });
+    row.addEventListener('dragstart', e => {
+      dragId = item.id;
+      // Requests can also be dropped on a flow canvas, which copies them in as blocks.
+      if (item.type === 'request') {
+        e.dataTransfer.setData('application/x-fetchwing-request', item.id);
+        e.dataTransfer.effectAllowed = 'copyMove';
+      } else {
+        e.dataTransfer.effectAllowed = 'move';
+      }
+    });
     row.addEventListener('dragover', e => {
       if (!dragId || dragId === item.id) return;
       e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
       row.classList.add(isContainer ? 'drop-into' : 'drop-before');
     });
     row.addEventListener('dragleave', () => row.classList.remove('drop-into', 'drop-before'));

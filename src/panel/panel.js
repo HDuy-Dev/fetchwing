@@ -35,6 +35,8 @@ const ERRORS = {
   invalid_move: "Can't move it there.",
   invalid_parent: "Can't create it there.",
   not_found: 'That item no longer exists.',
+  cycle: "Blocks can't connect in a loop.",
+  invalid_edge: "Can't connect those blocks.",
 };
 
 const state = {
@@ -264,11 +266,20 @@ function unmountFlow() {
 
 // Shows the selected flow in place of the request area; false when there is none to show.
 function renderFlowMain() {
-  if (state.section !== 'flows' || !isLiveFlow(state.flowId)) { unmountFlow(); return false; }
+  if (state.section !== 'flows') { unmountFlow(); return false; }
   $('openTabs').hidden = true;
   $('emptyMain').hidden = true;
   $('work').hidden = true;
   $('flowMain').hidden = false;
+  if (!isLiveFlow(state.flowId)) {
+    state.flowView?.view.destroy();
+    state.flowView = null;
+    $('flowMain').replaceChildren(el('div', { class: 'flow-body' }, el('div', { class: 'flow-empty' },
+      icon('flow', 'big'),
+      el('p', { class: 'flow-empty-title' }, 'Select a flow or create one'),
+      el('button', { type: 'button', class: 'btn-primary', onclick: newFlow }, icon('plus'), 'New flow'))));
+    return true;
+  }
   if (state.flowView?.flowId === state.flowId) {
     state.flowView.view.update(state.ws);
   } else {
@@ -281,6 +292,7 @@ function renderFlowMain() {
         mutate, send, store,
         isWindow: isEditorWindow,
         getTabId: () => inspectedTabId,
+        onOpenRequest: id => { expandPath(id); select(id); },
       }),
     };
   }
