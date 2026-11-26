@@ -16,6 +16,8 @@ const TABS = [['io', 'Inputs / Outputs'], ['response', 'Response'], ['request', 
 const ICON = { idle: '', queued: '', running: '', ok: '✓', bad: '✕', skip: '⊘', warn: '!' };
 const CLASS = { ok: 'ok', failed: 'bad', skipped: 'skip', missing: 'warn', running: 'running', queued: 'queued' };
 const TEXT = { idle: 'Not run', queued: 'Queued', running: 'Running…', skipped: 'Skipped', missing: 'Missing variable' };
+const OUTDATED = 'The request changed after this run; this response is outdated.';
+const OUTDATED_REQUEST = 'The request changed after this run: this is the request now, with values from that run.';
 const DEFAULT_W = 440, MIN_W = 280, LONG = 44, MASK = '••••••••';
 const has = (o, k) => Object.prototype.hasOwnProperty.call(o || {}, k);
 const ms = n => `${Math.round(n)} ms`;
@@ -67,6 +69,19 @@ export function outputError(name, path, outputs, index) {
   if (outputs.some((o, i) => i !== index && o.name === n)) return `An output named ${n} already exists`;
   const parsed = parsePath(path);
   return parsed.ok ? null : parsed.error;
+}
+
+// The environment values a block's view shows, and which are secret. From the run's snapshot,
+// secret flags come from the environment that run used; if it is gone, every value is masked.
+export function envView(ws, run, fromSnapshot) {
+  const secretsOf = env => new Set((env?.vars || []).filter(v => v.secret).map(v => v.key));
+  if (fromSnapshot) {
+    const env = ws.environments?.[run.snapshot.envId];
+    const secrets = env && !env.deleted ? secretsOf(env) : null;
+    return { vars: run.snapshot.envVars, secret: name => !secrets || secrets.has(name) };
+  }
+  const secrets = secretsOf(ws.environments?.[ws.activeEnvId]);
+  return { vars: envVars(ws), secret: name => secrets.has(name) };
 }
 
 // options: { onGo(blockId), onChange(patch), onClose(), onOpenRequest?(requestId), store? }
@@ -147,11 +162,10 @@ export function createDetails(container, { onGo, onChange, onClose, onOpenReques
   // ---------- variables of the selected block ----------
   function varInfo(id) {
     const entry = c.analysis.get(id);
-    const env = c.run?.snapshot?.envVars && done(c.run.blocks?.[id]) ? c.run.snapshot.envVars : envVars(c.ws);
-    const secrets = new Set((c.ws.environments?.[c.ws.activeEnvId]?.vars || []).filter(v => v.secret).map(v => v.key));
+    const { vars: env, secret } = envView(c.ws, c.run, Boolean(c.run?.snapshot?.envVars && done(c.run.blocks?.[id])));
     const info = new Map();
     for (const { name, from } of entry?.uses || []) {
-      if (from === 'env') info.set(name, { from, value: has(env, name) ? env[name] : undefined, secret: secrets.has(name) });
+      if (from === 'env') info.set(name, { from, value: has(env, name) ? env[name] : undefined, secret: secret(name) });
       else if (from) {
         const r = c.run?.blocks?.[from];
         info.set(name, { from, value: r?.state === 'ok' && has(r.outputs, name) ? toText(r.outputs[name]) : undefined, secret: isSensitiveName(name) });
@@ -162,10 +176,11 @@ export function createDetails(container, { onGo, onChange, onClose, onOpenReques
 
   // Text with each {{name}} shown as a chip holding the name and its value.
   function chipify(text, vars, show = false) {
+    const s = String(text ?? '');
     const out = [];
     let last = 0;
-    for (const m of String(text ?? '').matchAll(VAR_PATTERN)) {
-      out.push(text.slice(last, m.index));
+    for (const m of s.matchAll(VAR_PATTERN)) {
+      out.push(s.slice(last, m.index));
       last = m.index + m[0].length;
       const v = vars.get(m[1]);
       if (!v?.from) {
@@ -179,7 +194,7 @@ export function createDetails(container, { onGo, onChange, onClose, onOpenReques
         v.secret && v.value !== undefined && !show ? el('button', { type: 'button', class: 'eye', 'aria-label': hidden ? 'Show value' : 'Hide value', title: hidden ? 'Show value' : 'Hide value',
           onclick: () => { const k = `chip:${m[1]}`; if (hidden) revealed.add(k); else revealed.delete(k); paint(); } }, hidden ? '◉' : '◎') : null));
     }
-    out.push(text.slice(last));
+    out.push(s.slice(last));
     return out.filter(x => x !== '');
   }
 
@@ -350,7 +365,7 @@ export function createDetails(container, { onGo, onChange, onClose, onOpenReques
     const r = result.response;
     const parts = [];
     const skipped = c.flow.edges.filter(e => e.from === id && c.run?.blocks?.[e.to]?.state === 'skipped').map(e => e.to);
-    if (outdatedOf(id)) parts.push(note('warn', 'The request changed after this run; this response is outdated.'));
+    if (outdatedOf(id)) parts.push(note('warn', OUTDATED));
     else if (result.state === 'failed' && skipped.length) parts.push(note('err', 'Skipped because of this error: ', ...links([...new Set(skipped)])));
     else if (result.state === 'failed' && result.errorKind === 'truncated') parts.push(note('err', result.error));
     else if (result.mock) parts.push(note('mock', 'Answered by a mock; the server was not called.'));
@@ -422,6 +437,7 @@ export function createDetails(container, { onGo, onChange, onClose, onOpenReques
     }
     const crumbs = pathOf(c.ws, request.id).join(' › ');
     return [
+      outdatedOf(id) ? note('warn', OUTDATED_REQUEST) : null,
       result?.mock ? note('mock', 'Not sent: answered by the mock.') : null,
       sect('URL', null, el('div', { class: 'urlbox' }, el('span', { class: `m ${request.method}` }, request.method), ' ', chipify(url, vars))),
       query.length ? sect('Query', query.length, el('table', { class: 'rq' }, query.map(([k, v]) => el('tr', {}, el('td', {}, chipify(k, vars)), el('td', {}, chipify(v, vars)))))) : null,
@@ -441,6 +457,7 @@ export function createDetails(container, { onGo, onChange, onClose, onOpenReques
       return el('tr', {}, el('td', {}, h.key), el('td', {}, valueCell(h.value, { key: `rqh:${h.key}`, secret: true, prefix: scheme, revealAs: () => el('span', {}, chipify(h.value, vars, true)) })));
     });
     return [
+      outdatedOf(id) ? note('warn', OUTDATED_REQUEST) : null,
       sect('Request headers', reqRows.length, reqRows.length ? el('table', { class: 'rq' }, reqRows) : dim('No request headers.')),
       sect('Response headers', resHeaders?.length ?? 0, resHeaders ? el('table', { class: 'rq' }, resHeaders.map(([k, v]) => el('tr', {}, el('td', {}, k),
         el('td', {}, valueCell(String(v), { key: `rsh:${k}`, secret: isSensitiveHeader(k) }))))) : dim('No response yet.')),

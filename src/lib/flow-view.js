@@ -43,4 +43,4 @@ export function edgeLabel(names) {
 }
 
 export const isSensitiveName = name => /token|secret|password|key/i.test(name);
-export const isSensitiveHeader = name => /^authorization$|^cookie$|api-key/i.test(name);
+export const isSensitiveHeader = name => /^authorization$|^(set-)?cookie$|api-key/i.test(name);

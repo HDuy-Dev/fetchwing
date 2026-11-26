@@ -42,5 +42,6 @@ test('sensitive names', () => {
   assert.ok(isSensitiveName('apiKey') && isSensitiveName('Password'));
   assert.ok(!isSensitiveName('userId'));
   assert.ok(isSensitiveHeader('Authorization') && isSensitiveHeader('x-api-key') && isSensitiveHeader('Cookie'));
+  assert.ok(isSensitiveHeader('Set-Cookie') && isSensitiveHeader('set-cookie'));
   assert.ok(!isSensitiveHeader('Content-Type'));
 });

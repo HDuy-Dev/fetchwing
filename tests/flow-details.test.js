@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { outputHighlights, newOutputFor, outputError } from '../src/panel/flow-details.js';
+import { outputHighlights, newOutputFor, outputError, envView } from '../src/panel/flow-details.js';
 import { pathKey } from '../src/panel/json-view.js';
 
 test('outputHighlights maps each body path an output reads to its name', () => {
@@ -40,4 +40,29 @@ test('outputError checks the name and the path', () => {
   assert.equal(outputError('token', 'body.x', outs, 0), null);
   assert.match(outputError('x', 'nope', outs, -1), /Path must start/);
   assert.equal(outputError(' x ', 'body.x', outs, -1), null);
+});
+
+test('envView takes values and secret flags from the environment the run used', () => {
+  const ws = {
+    activeEnvId: 'dev',
+    environments: {
+      prod: { id: 'prod', vars: [{ key: 'dbPass', value: 'p', secret: true }, { key: 'base', value: 'b', secret: false }] },
+      dev: { id: 'dev', vars: [{ key: 'base', value: 'd', secret: false }] },
+    },
+  };
+  const run = { snapshot: { envId: 'prod', envVars: { dbPass: 'p', base: 'b' } } };
+  const used = envView(ws, run, true);
+  assert.equal(used.vars.dbPass, 'p');
+  assert.equal(used.secret('dbPass'), true);
+  assert.equal(used.secret('base'), false);
+  const now = envView(ws, run, false);
+  assert.deepEqual(now.vars, { base: 'd' });
+  assert.equal(now.secret('base'), false);
+});
+
+test('envView masks every run-time value when the run’s environment is gone', () => {
+  const run = { snapshot: { envId: 'prod', envVars: { base: 'b' } } };
+  assert.equal(envView({ activeEnvId: null, environments: {} }, run, true).secret('base'), true);
+  const deleted = { environments: { prod: { id: 'prod', deleted: true, vars: [{ key: 'base', value: 'b', secret: false }] } } };
+  assert.equal(envView(deleted, run, true).secret('base'), true);
 });
