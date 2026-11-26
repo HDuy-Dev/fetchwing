@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <title>Fetchwing</title>
 <link rel="stylesheet" href="panel.css">
+<link rel="stylesheet" href="flows.css">
 </head>
 <body>
 <div class="gone" id="goneNotice" role="alert" hidden>Fetchwing was reloaded. Close and reopen DevTools to keep using it. Changes made here are not saved.</div>
@@ -23,6 +24,7 @@
       <button type="button" data-section="collections" aria-label="Collections" title="Collections"></button>
       <button type="button" data-section="environments" aria-label="Environments" title="Environments"></button>
       <button type="button" data-section="mocks" aria-label="Mocks" title="Mocks"></button>
+      <button type="button" data-section="flows" aria-label="Flows" title="Flows"></button>
     </nav>
 
     <aside class="side" id="side">
@@ -34,6 +36,7 @@
     <main class="main">
       <div class="tabs-open" id="openTabs" role="tablist" aria-label="Open requests"></div>
       <div class="empty-main" id="emptyMain"></div>
+      <div class="flow-main" id="flowMain" hidden></div>
       <div class="work" id="work" hidden>
         <section class="req" id="editor" aria-label="Request"></section>
         <div class="splitter" id="splitter" role="separator" aria-orientation="horizontal" aria-label="Resize request and response" tabindex="0" title="Drag to resize, double-click to reset"></div>

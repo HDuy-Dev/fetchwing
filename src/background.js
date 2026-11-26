@@ -9,6 +9,7 @@ import { GOOGLE_CLIENT_ID } from './config.js';
 import { createAuth } from './lib/google-auth.js';
 import { createDriveStore } from './lib/drive-store.js';
 import { createSyncer } from './lib/sync.js';
+import { openEditorWindow } from './lib/editor-window.js';
 
 const SCRIPT_IDS = ['fw-bridge', 'fw-main'];
 let nextRuleId = 1000;
@@ -193,6 +194,9 @@ async function handle(msg) {
       const tab = await chrome.tabs.get(msg.tabId).catch(() => null);
       return { origin: tab ? originOf(tab.url) : null };
     }
+    case 'openEditorWindow':
+      await openEditorWindow(chrome, { requestId: msg.requestId, flowId: msg.flowId, tabId: msg.tabId });
+      return { ok: true };
     case 'listAccess': {
       const { origins = [] } = await chrome.permissions.getAll();
       return { origins };

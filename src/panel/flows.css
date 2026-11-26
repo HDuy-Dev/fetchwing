@@ -1,0 +1,27 @@
+/* Flows: sidebar list and the flow shown in the main area. */
+
+/* ---------- sidebar list ---------- */
+.flow-row { cursor: pointer; user-select: none; }
+.flow-row .flow-icon { color: var(--faint); }
+.flow-row[aria-current="true"] .flow-icon { color: var(--accent); }
+.flow-row input { flex: 1; min-width: 0; height: 22px; padding: 0 4px; border: 1px solid var(--accent-line); border-radius: var(--r-sm); background: var(--bg); }
+.flow-list-empty { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.flow-list-empty p { margin: 0; }
+
+/* ---------- main area ---------- */
+.flow-main { flex: 1; display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+.flow-toolbar { display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 8px 0 12px; background: var(--surface); border-bottom: 1px solid var(--divider); flex-shrink: 0; }
+.flow-toolbar .flow-icon { color: var(--faint); }
+.flow-name { flex: 1; min-width: 0; margin: 0; font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.flow-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.flow-actions .btn, .flow-actions .btn-primary { height: 28px; padding: 0 10px; font-size: 12px; }
+.flow-actions .btn-primary:disabled { opacity: .5; cursor: default; filter: none; }
+.flow-actions .i { width: 14px; height: 14px; }
+.flow-body { flex: 1; position: relative; min-height: 0; overflow: hidden; background: var(--bg); }
+
+.flow-empty { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 24px; text-align: center; color: var(--muted); }
+.flow-empty p { margin: 0; max-width: 340px; }
+.flow-empty .big { width: 32px; height: 32px; color: var(--faint); margin-bottom: 4px; }
+.flow-empty .flow-empty-title { color: var(--text); font-weight: 600; }
+.flow-empty .btn-primary { margin-top: 12px; }
+.flow-empty .btn-primary:disabled { opacity: .5; cursor: default; filter: none; }

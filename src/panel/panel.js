@@ -14,6 +14,8 @@ import { renderMockEditor, mockFromResponse, setMockOn } from './mock-editor.js'
 import { openEnvironments } from './env-editor.js';
 import { openSettings } from './settings-view.js';
 import { editorParams } from '../lib/editor-window.js';
+import { renderFlowList } from './flow-list.js';
+import { mountFlowView } from './flow-view.js';
 import { ensureOrigin } from './permissions.js';
 import { el, icon, iconButton, toast, showMenu, openDialog, dismissDialog } from './ui.js';
 
@@ -41,6 +43,8 @@ const state = {
   mockSites: [],
   section: store.get('section', 'collections'),
   selectedId: store.get('selected', null),
+  flowId: store.get('flow', null), // the flow shown while the Flows section is active
+  flowView: null, // { flowId, view } while a flow is mounted in the main area
   openTabs: store.get('tabs', []),
   expanded: new Set(store.get('expanded', [])),
   responses: new Map(), // requestId -> { loading, startedAt } | { error } | { response }
@@ -58,7 +62,8 @@ const isEditorWindow = params.isEditor && !chrome.devtools;
 state.isEditorWindow = isEditorWindow;
 export let inspectedTabId = chrome.devtools?.inspectedWindow?.tabId ?? params.tabId;
 // The request to show once the workspace has loaded; a later click replaces it.
-let pendingReveal = isEditorWindow && params.requestId ? { requestId: params.requestId, tabId: params.tabId } : null;
+let pendingReveal = isEditorWindow && (params.requestId || params.flowId)
+  ? { requestId: params.requestId, flowId: params.flowId, tabId: params.tabId } : null;
 
 // Theme is chosen in the panel; the first time it starts from the DevTools theme.
 const devtoolsDark = chrome.devtools?.panels?.themeName === 'dark' || (!chrome.devtools?.panels && matchMedia('(prefers-color-scheme: dark)').matches);
@@ -99,6 +104,7 @@ async function inspectedOrigin() {
 }
 
 const isLiveRequest = id => { const it = state.ws?.items[id]; return Boolean(it && !it.deleted && it.type === 'request'); };
+const isLiveFlow = id => { const f = id && state.ws?.flows?.[id]; return Boolean(f && !f.deleted); };
 const mocksOn = () => liveRequests(state.ws).filter(r => r.mock.enabled);
 
 // ---------- static shell ----------
@@ -108,7 +114,7 @@ $('searchBox').append(icon('search'), el('span', {}, 'Search requests'), el('spa
 $('envIcon').append(icon('braces'));
 $('settingsBtn').append(icon('gear'));
 $('drawerToggle').append(icon('menu'));
-const RAIL = { collections: ['folder', 'Collections'], environments: ['braces', 'Environments'], mocks: ['mock', 'Mocks'] };
+const RAIL = { collections: ['folder', 'Collections'], environments: ['braces', 'Environments'], mocks: ['mock', 'Mocks'], flows: ['flow', 'Flows'] };
 document.querySelectorAll('.rail [data-section]').forEach(btn => {
   btn.append(icon(RAIL[btn.dataset.section][0]));
   btn.addEventListener('click', () => {
@@ -133,6 +139,8 @@ const closeDrawer = () => $('app').classList.remove('drawer-open');
 function persistTabs() { store.set('tabs', state.openTabs); }
 
 function select(id) {
+  // A request picked from search shows in the request area, which Flows covers.
+  if (isLiveRequest(id) && state.section === 'flows') { state.section = 'collections'; store.set('section', state.section); }
   state.selectedId = id;
   store.set('selected', id);
   if (isLiveRequest(id) && !state.openTabs.includes(id)) {
@@ -223,6 +231,61 @@ const treeHandlers = {
     store.set('expanded', [...state.expanded]);
   },
 };
+
+// ---------- flows ----------
+
+function selectFlow(id) {
+  state.flowId = id;
+  store.set('flow', id);
+  if (id) closeDrawer();
+  render();
+}
+
+async function newFlow() {
+  const id = newId();
+  const res = await mutate({ type: 'addFlow', id, name: 'New flow' });
+  if (!res.ok) return;
+  state.ws = (await send({ type: 'getWorkspace' })).workspace ?? state.ws;
+  selectFlow(id);
+}
+
+const flowListHandlers = {
+  onOpen: selectFlow,
+  onAdd: newFlow,
+  onRename: (id, name) => mutate({ type: 'updateFlow', id, patch: { name } }),
+  onDelete: id => mutate({ type: 'deleteFlow', id }),
+};
+
+function unmountFlow() {
+  state.flowView?.view.destroy();
+  state.flowView = null;
+  $('flowMain').hidden = true;
+}
+
+// Shows the selected flow in place of the request area; false when there is none to show.
+function renderFlowMain() {
+  if (state.section !== 'flows' || !isLiveFlow(state.flowId)) { unmountFlow(); return false; }
+  $('openTabs').hidden = true;
+  $('emptyMain').hidden = true;
+  $('work').hidden = true;
+  $('flowMain').hidden = false;
+  if (state.flowView?.flowId === state.flowId) {
+    state.flowView.view.update(state.ws);
+  } else {
+    state.flowView?.view.destroy();
+    state.flowView = {
+      flowId: state.flowId,
+      view: mountFlowView($('flowMain'), {
+        flowId: state.flowId,
+        getWs: () => state.ws,
+        mutate, send, store,
+        isWindow: isEditorWindow,
+        getTabId: () => inspectedTabId,
+      }),
+    };
+  }
+  return true;
+}
 
 const tabHandlers = {
   onActivate: select,
@@ -551,6 +614,11 @@ function renderSide() {
       el('span', { class: 'sub' }, String(env.vars.length)),
       active ? el('span', { class: 'mdot', style: 'background:var(--accent)', title: 'Active', 'aria-label': 'Active' }) : null));
     }
+  } else if (state.section === 'flows') {
+    actions.append(iconButton('plus', 'New flow', newFlow));
+    const list = el('div');
+    content.append(list);
+    renderFlowList(list, state.ws, state.flowId, flowListHandlers);
   } else {
     const on = mocksOn();
     actions.append(iconButton('pause', 'Pause all', pauseAll, { disabled: !on.length }));
@@ -600,9 +668,14 @@ function render() {
     state.selectedId = state.openTabs[state.openTabs.length - 1] ?? null;
     store.set('selected', state.selectedId);
   }
+  if (state.flowId && !isLiveFlow(state.flowId)) {
+    state.flowId = null;
+    store.set('flow', null);
+  }
 
   renderTopbar();
   renderSide();
+  if (renderFlowMain()) return;
 
   // The main area shows the active tab; selecting a folder keeps the last request open.
   const activeId = isLiveRequest(state.selectedId) ? state.selectedId
@@ -654,12 +727,26 @@ async function refreshOrigin() {
   state.inspectedOrigin = await inspectedOrigin();
 }
 
-// Shows a request's mock, as asked by the popup's edit button.
+// Shows a flow, as asked by a flow's "Open in window" button.
+async function revealFlow(flowId) {
+  // The other page may know of a flow this window hasn't been told about yet.
+  if (!isLiveFlow(flowId)) state.ws = (await send({ type: 'getWorkspace' })).workspace ?? state.ws;
+  if (!isLiveFlow(flowId)) return toast(ERRORS.not_found);
+  dismissDialog();
+  state.section = 'flows';
+  selectFlow(flowId);
+  await refreshOrigin();
+}
+
+// Shows a request's mock, as asked by the popup's edit button, or a flow.
 async function showPendingReveal() {
   if (!state.ws || !pendingReveal) return;
-  const { requestId, tabId } = pendingReveal;
+  // A flow-only reveal has no requestId (chrome.storage drops undefined values).
+  const { requestId, flowId, tabId } = pendingReveal;
   pendingReveal = null;
   if (tabId) inspectedTabId = tabId;
+  if (flowId) return revealFlow(flowId);
+  if (!requestId) return;
   // The popup may know of a request this window hasn't been told about yet.
   if (!isLiveRequest(requestId)) state.ws = (await send({ type: 'getWorkspace' })).workspace ?? state.ws;
   if (!isLiveRequest(requestId)) return toast(ERRORS.not_found);
