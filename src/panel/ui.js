@@ -23,6 +23,9 @@ const ICONS = {
   warn: '<path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>',
   pause: '<path d="M9 5v14M15 5v14"/>',
   trash: '<path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/>',
+  check: '<path d="m5 12 5 5 9-10"/>',
+  lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+  unlock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.5-2"/>',
   chevron: '<path d="m6 9 6 6 6-6"/>',
   sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
   cloud: '<path d="M17.5 19H7a5 5 0 1 1 1.2-9.86A6 6 0 0 1 19.5 11 4 4 0 0 1 17.5 19z"/>',
@@ -68,7 +71,7 @@ export function toast(message, ms = 2600) {
   toastTimer = setTimeout(() => { t.hidden = true; }, ms);
 }
 
-// Context menu. items: { label, icon?, action, danger?, confirm?, prefix?, disabled?, className? } | 'sep'
+// Context menu. items: { label, icon?, action, danger?, confirm?, disabled?, className? } | 'sep'
 export function showMenu(x, y, items) {
   const menu = document.getElementById('menu');
   menu.textContent = '';
@@ -97,7 +100,7 @@ export function showMenu(x, y, items) {
         close();
         item.action();
       },
-    }, item.icon ? icon(item.icon) : null, item.prefix ?? null, item.label));
+    }, item.icon ? icon(item.icon) : null, item.label));
   }
   menu.hidden = false;
   const rect = menu.getBoundingClientRect();

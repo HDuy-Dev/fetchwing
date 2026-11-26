@@ -402,14 +402,6 @@ function renderTopbar() {
   sel.append(el('option', { value: '' }, 'No environment'));
   for (const env of liveEnvironments(state.ws)) sel.append(el('option', { value: env.id, selected: env.id === state.ws.activeEnvId }, env.name));
   if (!state.ws.activeEnvId) sel.value = '';
-
-  const on = mocksOn();
-  const chip = $('mockChip');
-  chip.hidden = !on.length;
-  chip.textContent = '';
-  chip.append(el('span', { class: 'mdot', 'aria-hidden': 'true' }), String(on.length));
-  chip.setAttribute('aria-label', `${on.length} mock${on.length === 1 ? '' : 's'} on`);
-  chip.title = `${on.length} mock${on.length === 1 ? '' : 's'} on`;
 }
 
 $('envSelect').addEventListener('change', e => mutate({ type: 'setActiveEnv', id: e.target.value || null }));
@@ -514,19 +506,6 @@ const pauseAll = async () => {
   const res = await mutate({ type: 'disableAllMocks' });
   if (res.ok) toast('All mocks paused');
 };
-
-$('mockChip').addEventListener('click', e => {
-  const r = e.currentTarget.getBoundingClientRect();
-  showMenu(r.left, r.bottom + 2, [
-    ...mocksOn().map(i => ({
-      label: pathOf(state.ws, i.id).join(' / '),
-      prefix: el('span', { class: `m ${i.method}` }, i.method),
-      action: () => { expandPath(i.id); state.pane = 'mock'; select(i.id); },
-    })),
-    'sep',
-    { label: 'Pause all', icon: 'pause', danger: true, action: pauseAll },
-  ]);
-});
 
 // ---------- sidebar sections ----------
 
