@@ -39,8 +39,9 @@ export function runFlow(opts) {
   const {
     flow, ws, envVars = {}, send, signal, onUpdate = () => {},
     now = Date.now, sleep = ms => new Promise(r => setTimeout(r, ms)),
-    concurrency = 6, from = null, previous = null,
+    from = null, previous = null,
   } = opts;
+  const concurrency = Math.max(1, Math.floor(opts.concurrency ?? 6) || 1);
   const runId = opts.runId ?? crypto.randomUUID();
   const t0 = now();
   const at = () => now() - t0;
@@ -50,7 +51,12 @@ export function runFlow(opts) {
   const parents = new Map(order.map(id => [id, [...new Set(flow.edges.filter(e => e.to === id && byId.has(e.from)).map(e => e.from))]]));
   const inScope = id => from == null || id === from || upstream(flow, id).has(from);
   const blocks = {};
-  const set = (id, result) => { blocks[id] = result; onUpdate(id, result); };
+  // A throwing listener must not leave the run half-updated, so its errors are ignored.
+  const set = (id, result) => {
+    blocks[id] = result;
+    try { onUpdate(id, result); } catch { /* listener error */ }
+  };
+  const errorText = e => e?.message || String(e);
 
   // Before sending: copy out-of-scope blocks, settle the ones that can never be sent, queue the rest.
   for (const id of order) {
@@ -92,6 +98,7 @@ export function runFlow(opts) {
     const deadEnd = p => DEAD.has(blocks[p].state) || (!inScope(p) && blocks[p].state !== 'ok');
 
     function start(id) {
+      if (stopped) return;
       const block = byId.get(id);
       const { request, uses } = info.get(id);
       const flowVars = {};
@@ -109,11 +116,18 @@ export function runFlow(opts) {
       const sent = sentOf(resolveRequest(request, withFlowVars(envVars, flowVars)));
       const base = { sent, startMs: at(), fingerprint: blockFingerprint(request, envVars), mock: Boolean(request.mock?.enabled) };
       set(id, { ...base, state: 'running' });
+      if (stopped) return; // aborted by the listener
       inFlight++;
       exec(id, block, request, flowVars).then(res => {
         inFlight--;
         if (stopped) return;
-        set(id, { ...base, ...settle(block, res), endMs: at() });
+        let result;
+        try {
+          result = settle(block, res);
+        } catch (e) {
+          result = { state: 'failed', errorKind: 'network', error: errorText(e) };
+        }
+        set(id, { ...base, ...result, endMs: at() });
         pump();
       });
     }
@@ -126,7 +140,7 @@ export function runFlow(opts) {
         }
         return await send({ blockId: id, requestId: block.requestId, vars, key: `${runId}:${id}`, signal });
       } catch (e) {
-        return { ok: false, error: e?.message || String(e) };
+        return { ok: false, error: errorText(e) };
       }
     }
 
@@ -151,6 +165,7 @@ export function runFlow(opts) {
       while (progress) {
         progress = false;
         for (const id of order) {
+          if (stopped) return; // a listener may abort mid-pass
           if (blocks[id].state !== 'queued') continue;
           const ps = parents.get(id);
           if (ps.some(deadEnd)) {

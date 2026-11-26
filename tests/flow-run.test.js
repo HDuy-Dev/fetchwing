@@ -257,3 +257,53 @@ test('run from c reuses previous results upstream', async () => {
   assert.equal(result.blocks.d.sent.url, '/A1/C2');
   assert.deepEqual(result.blocks.a, previous.blocks.a);
 });
+
+test('a send that resolves ok without a response fails as network and the run ends', async () => {
+  const { flow, ws } = diamond();
+  const f = fakeSend({ b: async () => ({ ok: true }) });
+  const result = await runFlow(base({ flow, ws, send: f.send }));
+  assert.equal(result.blocks.b.state, 'failed');
+  assert.equal(result.blocks.b.errorKind, 'network');
+  assert.ok(result.blocks.b.error);
+  assert.equal(result.blocks.d.state, 'skipped');
+});
+
+test('a rejected send or a throwing onUpdate never leaves a block running', async () => {
+  const { flow, ws } = diamond();
+  const send = async ({ blockId }) => {
+    if (blockId === 'b') throw new Error('kaput');
+    return { ok: true, response: json(200, {}) };
+  };
+  const result = await runFlow(base({ flow, ws, send, onUpdate: () => { throw new Error('listener'); } }));
+  assert.equal(result.blocks.b.errorKind, 'network');
+  assert.equal(result.blocks.b.error, 'kaput');
+  assert.equal(result.blocks.c.state, 'ok');
+  assert.equal(result.blocks.d.state, 'skipped');
+  assert.ok(Object.values(result.blocks).every(b => b.state !== 'running'));
+});
+
+test('an abort from inside onUpdate stops further sends', async () => {
+  const ws = { items: { r: req('r') } };
+  const flow = { blocks: ['p', 'q', 's'].map(id => block(id, 'r')), edges: [] };
+  const ctrl = new AbortController();
+  const f = fakeSend({});
+  const onUpdate = (id, r) => { if (id === 'p' && r.state === 'running') ctrl.abort(); };
+  const result = await runFlow(base({ flow, ws, send: f.send, signal: ctrl.signal, onUpdate }));
+  assert.equal(result.stopped, true);
+  assert.equal(f.calls.length, 0);
+  assert.equal(result.blocks.p.errorKind, 'cancelled');
+  assert.equal(result.blocks.q.state, 'idle');
+  assert.equal(result.blocks.s.state, 'idle');
+});
+
+test('concurrency 0, negative or NaN behaves like 1', async () => {
+  const ws = { items: { r: req('r') } };
+  const flow = { blocks: ['p', 'q', 's'].map(id => block(id, 'r')), edges: [] };
+  for (const concurrency of [0, -2, NaN]) {
+    const f = fakeSend({});
+    const result = await runFlow(base({ flow, ws, send: f.send, concurrency }));
+    assert.equal(f.calls.length, 3);
+    assert.equal(f.max(), 1);
+    assert.ok(Object.values(result.blocks).every(b => b.state === 'ok'));
+  }
+});
