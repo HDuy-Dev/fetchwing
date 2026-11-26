@@ -2,7 +2,7 @@
 
 import { FAR_ZOOM, GRID, zoomAt, fitView, snap, midEllipsis, edgeLabel } from '../lib/flow-view.js';
 import { edgeVars, blockFingerprint, upstream } from '../lib/flow-graph.js';
-import { blockStatus, runFromHere } from '../lib/flow-record.js';
+import { blockStatus, runFromHere, envChanged } from '../lib/flow-record.js';
 import { envVars } from '../lib/vars.js';
 import { newId } from '../lib/model.js';
 import { el, toast, showMenu } from './ui.js';
@@ -269,7 +269,8 @@ export function createCanvas(container, { onSelect, onChange, onRunFrom, onOpenR
       const r = analysis.get(o.id)?.request;
       return r && blockStatus(run, o.id, blockFingerprint(r, envVars(ws))).outdated;
     }).map(o => o.id);
-    const from = runFromHere(run, flow, b.id, { outdatedIds });
+    const changed = envChanged(run, ws.activeEnvId, envVars(ws));
+    const from = runFromHere(run, flow, b.id, { envChanged: changed, outdatedIds });
     const items = [{ label: 'Run from here', icon: 'play', disabled: !from.enabled || !onRunFrom, action: () => onRunFrom(b.id) }];
     if (from.enabled && from.warn) items.push({ label: from.warn, disabled: true, className: 'menu-note', action: () => {} });
     items.push({ label: 'Open request', icon: 'edit', disabled: !entry?.request || !onOpenRequest, action: () => onOpenRequest(b.requestId) });

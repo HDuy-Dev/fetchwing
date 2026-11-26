@@ -86,3 +86,37 @@ export function fitRecords(records, maxBytes = 8_000_000) {
   }
   return out;
 }
+
+// True when the environment differs from the one the record's run used.
+export function envChanged(record, envId, vars) {
+  const snap = record?.snapshot;
+  if (!snap || !('envVars' in snap)) return false;
+  return (snap.envId ?? null) !== (envId ?? null) || JSON.stringify(snap.envVars) !== JSON.stringify(vars || {});
+}
+
+// The toolbar summary, as groups of { cls, text } parts shown with a separator between groups.
+export function runSummary(record) {
+  if (!record) return [[{ cls: '', text: 'Not run yet' }]];
+  const results = Object.entries(record.blocks || {});
+  const count = state => results.filter(([, b]) => b.state === state).length;
+  const groups = [];
+  if (record.status === 'running') {
+    const scope = new Set(record.scope ?? results.map(([id]) => id));
+    const inRun = results.filter(([id, b]) => scope.has(id) && b.state !== 'missing' && b.state !== 'idle');
+    const settled = inRun.filter(([, b]) => b.state === 'ok' || b.state === 'failed' || b.state === 'skipped');
+    groups.push([{ cls: '', text: `Running ${settled.length}/${inRun.length}…` }]);
+  } else if (record.status === 'stopped') {
+    groups.push([{ cls: 'skip', text: 'Stopped' }]);
+  } else if (record.status === 'abandoned') {
+    groups.push([{ cls: 'warn', text: record.note || 'Run stopped' }]);
+  }
+  const counts = [['ok', '✓', 'ok'], ['failed', '✕', 'bad'], ['skipped', '⊘', 'skip'], ['missing', '!', 'warn']]
+    .map(([state, sign, cls]) => ({ cls, text: `${sign}${count(state)}`, n: count(state) }))
+    .filter(p => p.n)
+    .map(({ cls, text }) => ({ cls, text }));
+  if (counts.length) groups.push(counts);
+  const mocks = results.filter(([, b]) => b.state === 'ok' && b.mock).length;
+  if (mocks) groups.push([{ cls: 'mk', text: `${mocks} mock` }]);
+  if (record.status !== 'running' && record.totalMs != null) groups.push([{ cls: '', text: `${Math.round(record.totalMs)} ms` }]);
+  return groups;
+}

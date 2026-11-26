@@ -97,3 +97,14 @@
 .canvas .world.far .node.mocked { box-shadow: inset 5px 0 0 var(--mock), var(--shadow); }
 
 .menu button.menu-note { white-space: normal; color: var(--warn); font-size: 12px; padding-top: 0; }
+
+/* Run summary and Stop */
+.flow-toolbar .flow-name { min-width: 56px; }
+.flow-summary { display: flex; align-items: center; gap: 8px; min-width: 0; overflow: hidden; white-space: nowrap; font: 12px var(--mono); color: var(--muted); }
+.flow-summary .ok { color: var(--ok); }
+.flow-summary .bad { color: var(--err); }
+.flow-summary .skip { color: var(--faint); }
+.flow-summary .warn { color: var(--warn); }
+.flow-summary .mk { color: var(--mock); }
+.flow-summary .sep { color: var(--faint); }
+.flow-actions .btn-primary.flow-run.stop { background: var(--surface-2); color: var(--err); border: 1px solid var(--err); }

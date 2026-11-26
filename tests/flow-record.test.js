@@ -128,3 +128,27 @@ test('fitRecords returns input unchanged when it fits', () => {
   const recs = [big('a', 1, 10)];
   assert.deepEqual(fitRecords(recs), recs);
 });
+
+test('envChanged compares the snapshot env id and values', async () => {
+  const { envChanged } = await import('../src/lib/flow-record.js');
+  const r = { snapshot: { envId: 'e1', envVars: { base: 'x' } } };
+  assert.equal(envChanged(r, 'e1', { base: 'x' }), false);
+  assert.equal(envChanged(r, 'e2', { base: 'x' }), true);
+  assert.equal(envChanged(r, 'e1', { base: 'y' }), true);
+  assert.equal(envChanged(null, 'e1', {}), false);
+  assert.equal(envChanged({ snapshot: {} }, 'e1', {}), false);
+});
+
+test('runSummary: not run, running, done, stopped, abandoned', async () => {
+  const { runSummary } = await import('../src/lib/flow-record.js');
+  const text = g => g.map(parts => parts.map(p => p.text).join(' ')).join(' · ');
+  assert.equal(text(runSummary(null)), 'Not run yet');
+  const running = { status: 'running', totalMs: null, scope: ['a', 'b', 'c', 'd'],
+    blocks: { a: { state: 'ok' }, b: { state: 'running' }, c: { state: 'queued' }, d: { state: 'missing' }, z: { state: 'ok' } } };
+  assert.equal(text(runSummary(running)), 'Running 1/3… · ✓2 !1');
+  const done = { status: 'done', totalMs: 1234.4,
+    blocks: { a: { state: 'ok', mock: true }, b: { state: 'failed' }, c: { state: 'skipped' }, d: { state: 'missing' } } };
+  assert.equal(text(runSummary(done)), '✓1 ✕1 ⊘1 !1 · 1 mock · 1234 ms');
+  assert.equal(text(runSummary({ ...done, status: 'stopped' })), 'Stopped · ✓1 ✕1 ⊘1 !1 · 1 mock · 1234 ms');
+  assert.equal(text(runSummary({ status: 'abandoned', note: 'Gone', totalMs: null, blocks: { a: { state: 'idle' } } })), 'Gone');
+});
