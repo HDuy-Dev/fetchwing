@@ -8,7 +8,7 @@ import { renderTree } from './tree.js';
 import { renderTabs } from './tabs.js';
 import { openSearch } from './search.js';
 import { createRequestEditor } from './request-editor.js';
-import { initSplit } from './split.js';
+import { initSplit, initSideResize } from './split.js';
 import { renderResponse } from './response-view.js';
 import { renderMockEditor, mockFromResponse, setMockOn } from './mock-editor.js';
 import { openEnvironments } from './env-editor.js';
@@ -26,6 +26,7 @@ const store = {
 };
 
 initSplit({ work: $('work'), req: $('editor'), handle: $('splitter'), store });
+initSideResize({ body: document.querySelector('.body'), rail: document.querySelector('.rail'), side: $('side'), handle: $('sideSplitter'), store });
 
 const ERRORS = {
   empty_name: 'Name cannot be empty.',

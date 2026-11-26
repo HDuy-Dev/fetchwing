@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { MIN_RESPONSE, clampSplit } from '../src/lib/split.js';
-import { initSplit } from '../src/panel/split.js';
+import { MIN_RESPONSE, clampSplit, clampSide } from '../src/lib/split.js';
+import { initSplit, initSideResize } from '../src/panel/split.js';
 
 const box = { work: 600, min: 50, reserved: 8 };
 
@@ -48,4 +48,51 @@ test('a click that jitters by a pixel or two saves nothing, a real drag does', t
   assert.deepEqual(saved, [250]);
   on.pointermove({ clientY: 399 });
   assert.deepEqual(saved, [250, 299]);
+});
+
+test('sidebar width stays between 200 and 480px', () => {
+  assert.equal(clampSide(320, 1200), 320);
+  assert.equal(clampSide(50, 1200), 200);
+  assert.equal(clampSide(900, 1200), 480);
+});
+
+test('the work area keeps 360px, and the 200px minimum wins', () => {
+  assert.equal(clampSide(480, 720), 360);
+  assert.equal(clampSide(480, 500), 200);
+});
+
+test('an unusable saved sidebar width means the default', () => {
+  for (const bad of [null, undefined, '300', NaN]) assert.equal(clampSide(bad, 1200), null);
+});
+
+test('the sidebar handle drags, uses Left/Right, resets, and never saves a short panel', t => {
+  let observe;
+  globalThis.ResizeObserver = class { constructor(fn) { observe = fn; } observe() {} };
+  t.after(() => { delete globalThis.ResizeObserver; });
+  const on = {};
+  const handle = { offsetWidth: 8, addEventListener: (type, fn) => { on[type] = fn; }, setPointerCapture() {}, focus() {}, setAttribute() {}, classList: { add() {}, remove() {} } };
+  let width = null;
+  const side = { get offsetWidth() { return width ?? 248; }, classList: { toggle() {} }, style: { setProperty: (k, v) => { width = parseInt(v, 10); }, removeProperty: () => { width = null; } } };
+  const body = { clientWidth: 1048 };
+  const saved = [];
+  initSideResize({ body, rail: { offsetWidth: 48 }, side, handle, store: { get: (k, d) => (saved.length ? saved.at(-1) : d), set: (k, v) => saved.push(v) } });
+
+  on.pointerdown({ button: 0, pointerId: 1, clientX: 300, preventDefault() {} });
+  on.pointermove({ clientX: 400 });
+  on.pointerup({});
+  assert.equal(width, 348);
+
+  on.keydown({ key: 'ArrowRight', preventDefault() {} });
+  assert.equal(width, 364);
+  on.keydown({ key: 'ArrowUp', preventDefault() {} });
+  assert.equal(width, 364);
+
+  body.clientWidth = 648;
+  observe();
+  assert.equal(width, 240);
+  assert.equal(saved.at(-1), 364);
+
+  on.dblclick();
+  assert.equal(width, null);
+  assert.equal(saved.at(-1), null);
 });
