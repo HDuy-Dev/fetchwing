@@ -51,7 +51,27 @@ function mergeMap(local, remote, adopt) {
   return { map: out, upload };
 }
 
+// Newer than an untouched default (0) and older than any real edit, so folding
+// an environment never overwrites variables added on a device that had not synced.
+const FOLDED_AT = 1;
+
+// The default "Local" environment is duplicated the same way. An untouched one
+// holds no variables, so it folds into the "Local" someone has edited, or else
+// into the untouched one with the smallest id.
+function foldDefaultEnvironments(environments) {
+  const out = { ...environments };
+  const live = Object.values(out).filter(e => !e.deleted);
+  const defaults = live.filter(e => e.updatedAt === 0).map(e => e.id).sort();
+  const edited = live.filter(e => e.updatedAt > 0 && e.name === 'Local').map(e => e.id).sort();
+  const keep = edited[0] ?? defaults[0];
+  const extra = defaults.filter(id => id !== keep);
+  for (const id of extra) out[id] = { ...out[id], deleted: true, mergedInto: keep, updatedAt: FOLDED_AT };
+  return { environments: out, changed: extra.length > 0 };
+}
+
 function pickActiveEnv(environments, current) {
+  // A folded environment hands the selection to the one it went into.
+  while (environments[current]?.deleted && environments[current].mergedInto) current = environments[current].mergedInto;
   if (current && environments[current] && !environments[current].deleted) return current;
   const live = Object.values(environments).filter(e => !e.deleted).sort((a, b) => a.order - b.order);
   return live[0]?.id ?? null;
@@ -98,8 +118,9 @@ export function mergeRemote(local, remote, now = Date.now()) {
   const items = mergeMap(base.items, remote.items ?? {}, withLocalItemState);
   const envs = mergeMap(base.environments, remote.environments ?? {}, withLocalSecrets);
   const folded = foldDefaultCollections(items.map, now);
+  const foldedEnvs = foldDefaultEnvironments(envs.map);
   return {
-    workspace: { items: folded.items, environments: envs.map, activeEnvId: pickActiveEnv(envs.map, base.activeEnvId) },
-    upload: items.upload || envs.upload || folded.changed,
+    workspace: { items: folded.items, environments: foldedEnvs.environments, activeEnvId: pickActiveEnv(foldedEnvs.environments, base.activeEnvId) },
+    upload: items.upload || envs.upload || folded.changed || foldedEnvs.changed,
   };
 }

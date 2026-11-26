@@ -160,3 +160,56 @@ test('collections the user made or edited are never folded', () => {
   const { workspace } = mergeRemote(ws({ x: mine('x', 3) }), toRemote(ws({ y: mine('y', 4) })), 100);
   assert.equal(liveCollections(workspace).length, 2);
 });
+
+const liveEnvs = w => Object.values(w.environments).filter(e => !e.deleted);
+// A device holding only the untouched default environment, under a known id.
+const fresh = (id, extra = {}) => ws({}, { [id]: env(id, 0, [], { name: 'Local', ...extra }) });
+const edit = (w, id, at, patch) => { w.environments[id] = { ...w.environments[id], ...patch, updatedAt: at }; };
+
+test('default environments from several devices become one', () => {
+  const two = mergeRemote(fresh('c'), toRemote(ws({ a: item('a', 3) }, fresh('b').environments)), 100).workspace;
+  assert.deepEqual(liveEnvs(two).map(e => e.id), ['b']);
+  assert.equal(two.activeEnvId, 'b');
+  const local = { ...fresh('c'), items: { z: item('z', 4) } };
+  const three = mergeRemote(local, toRemote(ws({}, { ...fresh('a').environments, ...fresh('b').environments })), 100);
+  assert.deepEqual(liveEnvs(three.workspace).map(e => e.id), ['a']);
+  assert.equal(three.workspace.activeEnvId, 'a');
+  assert.equal(three.upload, true);
+  const again = mergeRemote(three.workspace, toRemote(three.workspace), 200);
+  assert.equal(again.upload, false);
+  assert.deepEqual(again.workspace.environments, three.workspace.environments);
+});
+
+test('an untouched default folds into the Local that has been edited', () => {
+  const vars = [{ key: 'base', value: 'x', secret: false }];
+  const remote = toRemote(ws({}, { z: env('z', 8, vars, { name: 'Local' }) }));
+  const { workspace } = mergeRemote({ ...fresh('a'), items: { i: item('i', 2) } }, remote, 100);
+  assert.deepEqual(liveEnvs(workspace).map(e => e.id), ['z']);
+  assert.deepEqual(workspace.environments.z.vars, vars);
+  assert.equal(workspace.activeEnvId, 'z');
+});
+
+test('variables added offline before the fold arrived are not lost', () => {
+  const folded = mergeRemote({ ...fresh('b'), items: { i: item('i', 2) } }, toRemote(fresh('a')), 100).workspace;
+  const stale = fresh('b');
+  const vars = [{ key: 'token', value: 's3cret', secret: true }];
+  edit(stale, 'b', 50, { vars });
+  const { workspace, upload } = mergeRemote(stale, toRemote(folded), 200);
+  assert.equal(workspace.environments.b.deleted, false);
+  assert.deepEqual(workspace.environments.b.vars, vars);
+  assert.equal(workspace.activeEnvId, 'b');
+  assert.equal(upload, true);
+});
+
+test('the active environment follows the one it was folded into', () => {
+  const staging = { s: env('s', 3, [], { name: 'Staging', order: -1 }) };
+  const folded = mergeRemote(ws({}, { ...staging, ...fresh('b').environments }), toRemote(fresh('a')), 100).workspace;
+  const stale = ws({}, { ...staging, ...fresh('b').environments }, 'b');
+  assert.equal(mergeRemote(stale, toRemote(folded), 200).workspace.activeEnvId, 'a');
+});
+
+test('environments the user made or edited are never folded', () => {
+  const mine = (id, at) => env(id, at, [], { name: 'Local' });
+  const { workspace } = mergeRemote(ws({}, { x: mine('x', 3) }), toRemote(ws({}, { y: mine('y', 4) })), 100);
+  assert.equal(liveEnvs(workspace).length, 2);
+});
