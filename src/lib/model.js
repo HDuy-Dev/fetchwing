@@ -1,6 +1,7 @@
 // Workspace: collections → folders → requests, plus environments.
 // Item: { id, type: 'collection'|'folder'|'request', parentId, order, name, updatedAt, deleted, ...request fields }
 // Environment: { id, name, order, vars: [{key, value, secret}], updatedAt, deleted }
+// Flow: { id, name, order, updatedAt, deleted, blocks: [{ id, kind: 'request', requestId, x, y, outputs: [{name, path}] }], edges: [{ from, to }] }
 
 export const newId = () => crypto.randomUUID();
 
@@ -26,6 +27,7 @@ export function emptyWorkspace() {
       [envId]: { id: envId, name: 'Local', order: 0, vars: [], updatedAt: 0, deleted: false },
     },
     activeEnvId: envId,
+    flows: {},
   };
 }
 
@@ -43,10 +45,40 @@ export function liveEnvironments(ws) {
   return Object.values(ws.environments).filter(e => !e.deleted).sort((a, b) => a.order - b.order);
 }
 
+export function liveFlows(ws) {
+  return Object.values(ws.flows ?? {}).filter(f => !f.deleted).sort((a, b) => a.order - b.order);
+}
+
 export function pathOf(ws, id) {
   const names = [];
   for (let item = ws.items[id]; item; item = ws.items[item.parentId]) names.unshift(item.name);
   return names;
+}
+
+function validEdges(blocks, edges) {
+  const ids = new Set(blocks.map(b => b.id));
+  const seen = new Set();
+  for (const { from, to } of edges) {
+    const key = `${from}\0${to}`;
+    if (from === to || !ids.has(from) || !ids.has(to) || seen.has(key)) return false;
+    seen.add(key);
+  }
+  return true;
+}
+
+function hasCycle(edges) {
+  const out = new Map();
+  for (const { from, to } of edges) out.set(from, [...(out.get(from) ?? []), to]);
+  const state = new Map(); // 1 = on the DFS stack, 2 = done
+  const visit = id => {
+    if (state.get(id) === 1) return true;
+    if (state.get(id) === 2) return false;
+    state.set(id, 1);
+    for (const to of out.get(id) ?? []) if (visit(to)) return true;
+    state.set(id, 2);
+    return false;
+  };
+  return [...out.keys()].some(visit);
 }
 
 const isContainer = item => item && !item.deleted && (item.type === 'collection' || item.type === 'folder');
@@ -62,9 +94,11 @@ function isDescendant(ws, id, ancestorId) {
 
 // Pure: returns { workspace } with new objects, or { error }.
 export function applyMutation(ws, m, now) {
-  const next = { items: { ...ws.items }, environments: { ...ws.environments }, activeEnvId: ws.activeEnvId };
+  const next = { items: { ...ws.items }, environments: { ...ws.environments }, activeEnvId: ws.activeEnvId, flows: { ...(ws.flows ?? {}) } };
   const touch = (id, patch) => { next.items[id] = { ...next.items[id], ...patch, updatedAt: now }; };
   const touchEnv = (id, patch) => { next.environments[id] = { ...next.environments[id], ...patch, updatedAt: now }; };
+  const touchFlow = (id, patch) => { next.flows[id] = { ...next.flows[id], ...patch, updatedAt: now }; };
+  const liveFlow = id => next.flows[id] && !next.flows[id].deleted ? next.flows[id] : null;
   const live = id => next.items[id] && !next.items[id].deleted ? next.items[id] : null;
   const liveEnv = id => next.environments[id] && !next.environments[id].deleted ? next.environments[id] : null;
   const reorder = (parentId, ids) => ids.forEach((id, order) => {
@@ -166,6 +200,34 @@ export function applyMutation(ws, m, now) {
     case 'setActiveEnv': {
       if (m.id !== null && !liveEnv(m.id)) return { error: 'not_found' };
       next.activeEnvId = m.id;
+      return { workspace: next };
+    }
+    case 'addFlow': {
+      const order = liveFlows(next).length;
+      next.flows[m.id] = { id: m.id, name: String(m.name ?? '').trim() || 'Untitled flow', order, updatedAt: now, deleted: false, blocks: [], edges: [] };
+      return { workspace: next };
+    }
+    case 'updateFlow': {
+      const flow = liveFlow(m.id);
+      if (!flow) return { error: 'not_found' };
+      const patch = {};
+      if ('name' in m.patch) {
+        const name = String(m.patch.name).trim();
+        if (!name) return { error: 'empty_name' };
+        patch.name = name;
+      }
+      if ('blocks' in m.patch) patch.blocks = m.patch.blocks;
+      if ('edges' in m.patch) patch.edges = m.patch.edges;
+      const blocks = patch.blocks ?? flow.blocks;
+      const edges = patch.edges ?? flow.edges;
+      if (!validEdges(blocks, edges)) return { error: 'invalid_edge' };
+      if (hasCycle(edges)) return { error: 'cycle' };
+      touchFlow(m.id, patch);
+      return { workspace: next };
+    }
+    case 'deleteFlow': {
+      if (!liveFlow(m.id)) return { error: 'not_found' };
+      touchFlow(m.id, { deleted: true });
       return { workspace: next };
     }
     default:
