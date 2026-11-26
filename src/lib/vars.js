@@ -1,5 +1,7 @@
 // {{name}} environment variables.
 
+import { toText } from './flow-path.js';
+
 export const VAR_PATTERN = /\{\{\s*([^{}]+?)\s*\}\}/g;
 
 export function resolveVars(text, vars) {
@@ -37,4 +39,12 @@ export function resolveRequest(request, vars) {
     fields: request.body.fields.map(f => (f.enabled ? { ...f, key: r(f.key), value: r(f.value) } : f)),
   };
   return { method: String(request.method).toUpperCase(), url, headers, body, missing: [...missing] };
+}
+
+export function withFlowVars(envVarsMap, flowVars = {}) {
+  const out = { ...envVarsMap };
+  for (const [name, value] of Object.entries(flowVars)) {
+    out[name] = typeof value === 'string' ? value : toText(value);
+  }
+  return out;
 }

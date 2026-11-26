@@ -2,7 +2,7 @@
 // keeps the page mock scripts and the badge in step with enabled mocks.
 
 import { applyMutation, emptyWorkspace } from './lib/model.js';
-import { envVars, resolveRequest } from './lib/vars.js';
+import { envVars, resolveRequest, withFlowVars } from './lib/vars.js';
 import { deriveActiveMocks, findDuplicate } from './lib/mocks.js';
 import { executeSend } from './lib/send.js';
 import { GOOGLE_CLIENT_ID } from './config.js';
@@ -12,7 +12,7 @@ import { createSyncer } from './lib/sync.js';
 
 const SCRIPT_IDS = ['fw-bridge', 'fw-main'];
 let nextRuleId = 1000;
-const inFlight = new Map(); // requestId -> AbortController
+const inFlight = new Map(); // send key (msg.key ?? requestId) -> AbortController
 
 let queue = Promise.resolve();
 function enqueue(fn) {
@@ -144,13 +144,14 @@ async function handle(msg) {
       const ws = await readWorkspace();
       const request = ws.items[msg.requestId];
       if (!request || request.deleted || request.type !== 'request') return { ok: false, error: 'Request not found' };
-      const resolved = resolveRequest(request, envVars(ws));
+      const sendKey = msg.key ?? msg.requestId;
+      const resolved = resolveRequest(request, msg.vars ? withFlowVars(envVars(ws), msg.vars) : envVars(ws));
       if (resolved.missing.length) return { ok: false, error: `Unresolved variables: ${resolved.missing.join(', ')}` };
       if (!originOf(resolved.url)) return { ok: false, error: 'Enter a full URL starting with http:// or https://' };
       nextRuleId = nextRuleId >= 1_000_000 ? 1000 : nextRuleId + 1;
-      inFlight.get(msg.requestId)?.abort();
+      inFlight.get(sendKey)?.abort();
       const controller = new AbortController();
-      inFlight.set(msg.requestId, controller);
+      inFlight.set(sendKey, controller);
       try {
         const response = await executeSend({
           resolved,
@@ -165,11 +166,11 @@ async function handle(msg) {
         if (controller.signal.aborted) return { ok: false, error: 'Cancelled', cancelled: true };
         return { ok: false, error: `Could not get a response: ${err?.message || err}` };
       } finally {
-        if (inFlight.get(msg.requestId) === controller) inFlight.delete(msg.requestId);
+        if (inFlight.get(sendKey) === controller) inFlight.delete(sendKey);
       }
     }
     case 'cancelSend':
-      inFlight.get(msg.requestId)?.abort();
+      inFlight.get(msg.key ?? msg.requestId)?.abort();
       return { ok: true };
     case 'addMockSite':
     case 'removeMockSite': {

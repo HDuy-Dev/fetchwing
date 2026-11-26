@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveVars, envVars, resolveRequest } from '../src/lib/vars.js';
+import { resolveVars, envVars, resolveRequest, withFlowVars } from '../src/lib/vars.js';
 
 test('replaces variables', () => {
   assert.deepEqual(resolveVars('{{base}}/u/{{ id }}', { base: 'http://h', id: '7' }), { value: 'http://h/u/7', missing: [] });
@@ -37,4 +37,9 @@ test('resolveRequest skips disabled headers and resolves body', () => {
   assert.equal(r.body.raw, '{"t":"T"}');
   assert.deepEqual(r.body.fields, [{ key: 'k', value: '{{nope}}', enabled: true }]);
   assert.deepEqual(r.missing, ['nope']);
+});
+
+test('flow variables win over the environment', () => {
+  assert.deepEqual(withFlowVars({ base: 'x', token: 'env' }, { token: 't', ids: [7, 9] }), { base: 'x', token: 't', ids: '[7,9]' });
+  assert.deepEqual(withFlowVars({ a: '1' }), { a: '1' });
 });
