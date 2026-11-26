@@ -277,34 +277,55 @@ export function createCanvas(container, { onSelect, onChange, onRunFrom, onOpenR
     showMenu(x, y, items);
   }
 
+  // Follows one pointer until it is released or cancelled; destroy() cancels it too.
+  let stopTracking = null;
+  function track(e, { move, end }) {
+    stopTracking?.(true);
+    const pid = e.pointerId;
+    const onMove = ev => { if (ev.pointerId === pid) move(ev); };
+    const onUp = ev => { if (ev.pointerId === pid) stop(false, ev); };
+    const onCancel = ev => { if (ev.pointerId === pid) stop(true, ev); };
+    function stop(cancelled, ev) {
+      removeEventListener('pointermove', onMove);
+      removeEventListener('pointerup', onUp);
+      removeEventListener('pointercancel', onCancel);
+      stopTracking = null;
+      end(ev, cancelled);
+    }
+    addEventListener('pointermove', onMove);
+    addEventListener('pointerup', onUp);
+    addEventListener('pointercancel', onCancel);
+    stopTracking = cancelled => stop(cancelled, null);
+  }
+
   // A press on a block: under 4px of travel it selects, otherwise it moves the block.
   function startMove(e, id) {
     const b = flow.blocks.find(x => x.id === id);
     if (!b) return;
     const sx = e.clientX, sy = e.clientY, origin = posOf(b);
     let moved = false;
-    const move = ev => {
-      if (!moved && Math.hypot(ev.clientX - sx, ev.clientY - sy) < 4) return;
-      moved = true;
-      drag = { id, x: snap(origin.x + (ev.clientX - sx) / view.k), y: snap(origin.y + (ev.clientY - sy) / view.k) };
-      nodes.get(id)?.classList.add('dragging');
-      layout();
-    };
-    const up = async () => {
-      removeEventListener('pointermove', move);
-      removeEventListener('pointerup', up);
-      if (!moved) { selectedEdge = null; onSelect?.(id); return; }
-      const { x, y } = drag;
-      drag = null;
-      nodes.get(id)?.classList.remove('dragging');
-      if (x === b.x && y === b.y) { layout(); return; }
-      pending.set(id, { x, y });
-      paint();
-      const res = await save({ blocks: flow.blocks.map(o => (o.id === id ? { ...o, x, y } : o)) });
-      if (res?.ok === false) { pending.delete(id); paint(); }
-    };
-    addEventListener('pointermove', move);
-    addEventListener('pointerup', up);
+    track(e, {
+      move: ev => {
+        if (!moved && Math.hypot(ev.clientX - sx, ev.clientY - sy) < 4) return;
+        moved = true;
+        drag = { id, x: snap(origin.x + (ev.clientX - sx) / view.k), y: snap(origin.y + (ev.clientY - sy) / view.k) };
+        nodes.get(id)?.classList.add('dragging');
+        layout();
+      },
+      end: async (ev, cancelled) => {
+        const last = drag;
+        drag = null;
+        nodes.get(id)?.classList.remove('dragging');
+        if (cancelled) { if (last) layout(); return; }
+        if (!moved) { selectedEdge = null; onSelect?.(id); return; }
+        const { x, y } = last;
+        if (x === b.x && y === b.y) { layout(); return; }
+        pending.set(id, { x, y });
+        paint();
+        const res = await save({ blocks: flow.blocks.map(o => (o.id === id ? { ...o, x, y } : o)) });
+        if (res?.ok === false) { pending.delete(id); paint(); }
+      },
+    });
   }
 
   // Drag from an out-port; dropping on another block (its in-port or body) adds the edge.
@@ -312,20 +333,19 @@ export function createCanvas(container, { onSelect, onChange, onRunFrom, onOpenR
     const b = flow.blocks.find(x => x.id === from);
     const p = posOf(b), x1 = p.x + W, y1 = p.y + PORT_Y;
     const temp = svgEl('path', { class: 'linking' });
-    const move = ev => {
-      const q = toWorld(ev.clientX, ev.clientY), c = Math.max(50, (q.x - x1) / 2);
-      temp.setAttribute('d', `M${x1} ${y1} C ${x1 + c} ${y1}, ${q.x - c} ${q.y}, ${q.x} ${q.y}`);
-      if (!temp.isConnected) edgesSvg.append(temp);
-    };
-    const up = ev => {
-      removeEventListener('pointermove', move);
-      removeEventListener('pointerup', up);
-      temp.remove();
-      const target = document.elementFromPoint(ev.clientX, ev.clientY)?.closest('.canvas .node');
-      if (target && root.contains(target)) connect(from, target.dataset.id);
-    };
-    addEventListener('pointermove', move);
-    addEventListener('pointerup', up);
+    track(e, {
+      move: ev => {
+        const q = toWorld(ev.clientX, ev.clientY), c = Math.max(50, (q.x - x1) / 2);
+        temp.setAttribute('d', `M${x1} ${y1} C ${x1 + c} ${y1}, ${q.x - c} ${q.y}, ${q.x} ${q.y}`);
+        if (!temp.isConnected) edgesSvg.append(temp);
+      },
+      end: (ev, cancelled) => {
+        temp.remove();
+        if (cancelled) return;
+        const target = document.elementFromPoint(ev.clientX, ev.clientY)?.closest('.canvas .node');
+        if (target && root.contains(target)) connect(from, target.dataset.id);
+      },
+    });
   }
 
   function makeNode(id) {
@@ -346,8 +366,10 @@ export function createCanvas(container, { onSelect, onChange, onRunFrom, onOpenR
       if (b) menuFor(b, e.clientX, e.clientY);
     });
     // Tab may land on a block outside the view: bring it in instead of scrolling the canvas.
+    // A mouse press focuses too, but must not move the view under the pointer.
     node.addEventListener('focus', () => {
       root.scrollLeft = 0; root.scrollTop = 0;
+      if (!node.matches(':focus-visible')) return;
       const r = node.getBoundingClientRect(), c = root.getBoundingClientRect();
       if (r.left < c.left || r.right > c.right || r.top < c.top || r.bottom > c.bottom) center(id);
     });
@@ -445,6 +467,7 @@ export function createCanvas(container, { onSelect, onChange, onRunFrom, onOpenR
     fit,
     addRequest,
     destroy() {
+      stopTracking?.(true);
       resize.disconnect();
       document.removeEventListener('keydown', onSpace);
       document.removeEventListener('keyup', onSpace);

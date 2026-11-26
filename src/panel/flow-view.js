@@ -30,7 +30,7 @@ export function mountFlowView(container, { flowId, getWs, mutate, send, store, i
   const empty = el('div', { class: 'flow-empty', hidden: true },
     icon('flow', 'big'),
     el('p', { class: 'flow-empty-title' }, 'This flow is empty'),
-    el('p', {}, 'Add a request from a collection, or drag one from the tree on the left.'),
+    el('p', {}, 'Add a request from a collection with ＋ Block.'),
     el('button', { type: 'button', class: 'btn-primary', onclick: addBlock }, icon('plus'), 'Add first block'));
   const body = el('div', { class: 'flow-body' });
   container.append(toolbar, body);
