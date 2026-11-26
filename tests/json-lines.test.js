@@ -72,3 +72,11 @@ test('expands JSON held in strings and records the path', () => {
 test('a root string is not expanded', () => {
   assert.equal(jsonLines('{"a":1}').length, 1);
 });
+
+test('every line carries its path; close lines share their block path', () => {
+  const lines = jsonLines({ a: { b: [1] } });
+  assert.deepEqual(lines.find(l => l.text === '1').path, ['a', 'b', 0]);
+  assert.deepEqual(lines[0].path, []);
+  const closeB = lines.filter(l => l.kind === 'close')[0];
+  assert.deepEqual(closeB.path, ['a', 'b']);
+});
