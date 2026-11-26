@@ -68,7 +68,7 @@ export function toast(message, ms = 2600) {
   toastTimer = setTimeout(() => { t.hidden = true; }, ms);
 }
 
-// Context menu. items: { label, icon?, action, danger?, confirm?, prefix?, disabled?, className? } | 'sep'
+// Context menu. items: { label, icon?, action, danger?, confirm?, disabled?, className? } | 'sep'
 export function showMenu(x, y, items) {
   const menu = document.getElementById('menu');
   menu.textContent = '';
@@ -97,7 +97,7 @@ export function showMenu(x, y, items) {
         close();
         item.action();
       },
-    }, item.icon ? icon(item.icon) : null, item.prefix ?? null, item.label));
+    }, item.icon ? icon(item.icon) : null, item.label));
   }
   menu.hidden = false;
   const rect = menu.getBoundingClientRect();

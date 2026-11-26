@@ -56,7 +56,6 @@ svg.i { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-widt
 .btn.danger { color: var(--err); border-color: var(--err); background: transparent; }
 .btn-primary { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 32px; padding: 0 16px; border-radius: var(--r-lg); border: 0; background: var(--accent-fill); color: var(--accent-ink); font-weight: 700; }
 .btn-primary:hover { filter: brightness(1.06); }
-.mock-chip { border-color: var(--mock); color: var(--mock); background: var(--mock-soft); font-weight: 600; }
 .env-pill { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 4px 0 10px; border-radius: var(--r-lg); border: 1px solid var(--control); background: var(--surface-2); color: var(--muted); }
 #envIcon { display: grid; place-items: center; }
 .env-pill select { border: 0; background: transparent; color: var(--text); max-width: 140px; height: 28px; outline: none; }
@@ -275,7 +274,7 @@ table.kv tr:hover .row-x, table.kv tr:focus-within .row-x { opacity: 1; }
   .side { position: absolute; left: 48px; top: 0; bottom: 0; z-index: 10; box-shadow: var(--shadow); display: none; }
   .app.drawer-open .side { display: flex; }
   .search { display: none; }
-  .mock-chip { margin-left: auto; }
+  .env-pill { margin-left: auto; }
   .drawer-toggle { display: grid !important; }
 }
 @container app (max-width: 560px) {
