@@ -106,7 +106,7 @@ export function runSummary(record) {
     const settled = inRun.filter(([, b]) => b.state === 'ok' || b.state === 'failed' || b.state === 'skipped');
     groups.push([{ cls: '', text: `Running ${settled.length}/${inRun.length}…` }]);
   } else if (record.status === 'stopped') {
-    groups.push([{ cls: 'skip', text: 'Stopped' }]);
+    groups.push([record.note ? { cls: 'warn', text: record.note } : { cls: 'skip', text: 'Stopped' }]);
   } else if (record.status === 'abandoned') {
     groups.push([{ cls: 'warn', text: record.note || 'Run stopped' }]);
   }

@@ -250,3 +250,71 @@ test('a write over the storage quota is retried without response bodies', async 
   await done;
   runner.dispose();
 });
+
+test('a later run arriving mid-run never takes this run\'s results', async () => {
+  const ws = makeWs();
+  const store = sharedStore();
+  const s = controlledSend();
+  let t = 1000;
+  const runner = createRunner({ flowId: 'f', getWs: () => ws, send: s.send, storage: store.page(), now: () => t, timers: fakeTimers() });
+  const done = runner.run();
+  await tick();
+  const ownId = store.data['flowRun:f'].runId;
+  // Another page starts a later run in the same moment, then a stale fitAll writes an old record.
+  const writer = store.page();
+  await writer.set({ 'flowRun:f': { flowId: 'f', runId: 'later', status: 'running', startedAt: 1001, beatAt: 1001, stopRequested: false, snapshot: {}, blocks: {}, totalMs: null } });
+  await tick(); await tick();
+  assert.equal(store.data['flowRun:f'].runId, ownId);
+  await writer.set({ 'flowRun:f': { flowId: 'f', runId: 'old', status: 'done', startedAt: 1, beatAt: 1, snapshot: {}, blocks: {}, totalMs: 5 } });
+  await tick(); await tick();
+  assert.equal(store.data['flowRun:f'].runId, ownId);
+  s.answer(s.calls[0].key, ok({ t: 'tok' }));
+  await tick(); await tick();
+  s.answer(s.calls.find(c => c.requestId === 'rb').key, ok({}));
+  assert.equal(await done, true);
+  await tick();
+  const final = store.data['flowRun:f'];
+  assert.equal(final.runId, ownId);
+  assert.equal(final.status, 'done');
+  assert.equal(final.blocks.a.state, 'ok');
+  runner.dispose();
+});
+
+test('an earlier run arriving mid-run wins: this run yields and writes nothing more', async () => {
+  const ws = makeWs();
+  const store = sharedStore();
+  const s = controlledSend();
+  const runner = createRunner({ flowId: 'f', getWs: () => ws, send: s.send, storage: store.page(), now: () => 1000, timers: fakeTimers() });
+  const done = runner.run();
+  await tick();
+  const earlier = { flowId: 'f', runId: 'earlier', status: 'running', startedAt: 999, beatAt: 999, stopRequested: false, snapshot: {}, blocks: { a: { state: 'running' } }, totalMs: null };
+  await store.page().set({ 'flowRun:f': earlier });
+  assert.equal(await done, false);
+  await tick(); await tick();
+  assert.deepEqual(store.data['flowRun:f'], earlier);
+  assert.equal(runner.record.runId, 'earlier');
+  assert.ok(s.calls.some(c => c.type === 'cancelSend'));
+  runner.dispose();
+});
+
+test('a throw during a run ends the record with a note and removes the listener', async () => {
+  const ws = makeWs();
+  const store = sharedStore();
+  const area = store.page();
+  let listeners = 0;
+  const add = area.onChanged.addListener, remove = area.onChanged.removeListener;
+  area.onChanged.addListener = fn => { listeners++; add(fn); };
+  area.onChanged.removeListener = fn => { listeners--; remove(fn); };
+  const timers = fakeTimers();
+  const runner = createRunner({ flowId: 'f', getWs: () => ws, send: async () => ({ ok: true }), storage: area, timers });
+  ws.items.ra.headers = null; // resolving the request inside runFlow throws on this
+  const done = runner.run();
+  runner.dispose();
+  await assert.rejects(done);
+  await tick();
+  const rec = store.data['flowRun:f'];
+  assert.equal(rec.status, 'stopped');
+  assert.match(rec.note, /^Run failed: /);
+  assert.equal(listeners, 0);
+  assert.equal(timers.count(), 0);
+});

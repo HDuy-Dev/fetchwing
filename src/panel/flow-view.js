@@ -64,8 +64,8 @@ export function mountFlowView(container, { flowId, getWs, mutate, send, store, i
         toast(`Fetchwing needs access to ${hosts} to run this flow`, 4000);
         return;
       }
-      runner.run({ from });
-    }, err => toast(`Could not run the flow: ${err?.message ?? err}`));
+      return runner.run({ from });
+    }).catch(err => toast(`Could not run the flow: ${err?.message ?? err}`));
   }
 
   const onKey = e => {

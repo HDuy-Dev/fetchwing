@@ -8,6 +8,7 @@ import { RECORD_PREFIX, HEARTBEAT_MS, newRecord, isAbandoned, abandon, fitRecord
 import { envVars, resolveRequest } from '../lib/vars.js';
 
 export const ABANDONED_NOTE = 'Run stopped: the window running it was closed';
+export const runFailedNote = err => `Run failed: ${err?.message || err}`;
 const WATCH_MS = 2000;
 
 const scopeOf = (flow, from) => id => from == null || id === from || upstream(flow, id).has(from);
@@ -72,6 +73,9 @@ export function createRunner({ flowId, getWs, send, storage, onRecord = () => {}
     for (const k of active.keys) send({ type: 'cancelSend', key: k });
   }
 
+  // Two runs started in two places within one storage round trip: the earlier one wins.
+  const startsBefore = (a, b) => a.startedAt < b.startedAt || (a.startedAt === b.startedAt && a.runId < b.runId);
+
   // storage is one area (StorageArea.onChanged passes only the changes).
   function onChanged(changes) {
     if (!(key in changes)) return;
@@ -80,6 +84,17 @@ export function createRunner({ flowId, getWs, send, storage, onRecord = () => {}
       // Our own writes echo back; only another page's stop or abandon matters here.
       if (active && (next.stopRequested || next.status !== 'running')) stopActive();
       return;
+    }
+    if (active) {
+      // Another run's record never takes this run's results.
+      if (next?.status === 'running' && startsBefore(next, record)) {
+        active.yielded = true;
+        stopActive();
+      } else {
+        // A later run, or a stale write (an old record, a removal): put this run's record back.
+        write(record);
+        return;
+      }
     }
     loaded = true;
     record = next;
@@ -105,12 +120,16 @@ export function createRunner({ flowId, getWs, send, storage, onRecord = () => {}
     const list = keys.map(k => all[k]);
     const fitted = fitRecords(list);
     if (fitted === list) return;
+    const changed = keys.filter((k, i) => fitted[i].status !== 'running' && JSON.stringify(fitted[i]) !== JSON.stringify(list[i]));
+    if (!changed.length) return;
+    // Read again just before writing: a record replaced meanwhile (a new run) is left alone.
+    const fresh = await storage.get(changed);
     const out = {};
-    keys.forEach((k, i) => {
-      // A run still going elsewhere keeps writing its own record.
-      if (fitted[i].status !== 'running' && JSON.stringify(fitted[i]) !== JSON.stringify(list[i])) out[k] = fitted[i];
-    });
-    if (out[key]) record = out[key];
+    for (const k of changed) {
+      const i = keys.indexOf(k);
+      if (JSON.stringify(fresh[k]) === JSON.stringify(list[i])) out[k] = fitted[i];
+    }
+    if (out[key] && record?.runId === out[key].runId) record = out[key];
     if (Object.keys(out).length) await storage.set(out);
   }
 
@@ -140,34 +159,56 @@ export function createRunner({ flowId, getWs, send, storage, onRecord = () => {}
     const runId = crypto.randomUUID();
     const keys = new Set();
     const controller = new AbortController();
-    active = { runId, controller, keys };
+    const mine = { runId, controller, keys, yielded: false };
+    active = mine;
     ownRunId = runId;
     loaded = true;
-    write({
-      ...newRecord({ flowId, runId, startedAt: now(), snapshot: { flow, fingerprints, envId: ws.activeEnvId ?? null, envVars: env } }),
-      blocks,
-      from,
-      scope: flow.blocks.filter(b => inScope(b.id)).map(b => b.id),
-    });
-    const beat = timers.setInterval(() => write({ ...record, beatAt: now() }), HEARTBEAT_MS);
-    let result;
+    let beat = null;
+    let result = null;
+    let failure = null;
     try {
+      write({
+        ...newRecord({ flowId, runId, startedAt: now(), snapshot: { flow, fingerprints, envId: ws.activeEnvId ?? null, envVars: env } }),
+        blocks,
+        from,
+        scope: flow.blocks.filter(b => inScope(b.id)).map(b => b.id),
+      });
+      // A run that yielded to an earlier one stops writing at once.
+      const put = next => { if (!mine.yielded) write(next); };
+      beat = timers.setInterval(() => put({ ...record, beatAt: now() }), HEARTBEAT_MS);
       result = await runFlow({
         flow, ws, envVars: env, runId, from, previous, signal: controller.signal,
         send: async ({ requestId, vars, key: sendKey }) => {
           keys.add(sendKey);
           try { return await send({ type: 'send', requestId, vars, key: sendKey }); } finally { keys.delete(sendKey); }
         },
-        onUpdate: (id, res) => write({ ...record, blocks: { ...record.blocks, [id]: res } }),
+        onUpdate: (id, res) => put({ ...record, blocks: { ...record.blocks, [id]: res } }),
       });
+    } catch (err) {
+      failure = err;
+      controller.abort();
+      for (const k of keys) send({ type: 'cancelSend', key: k });
     } finally {
-      timers.clearInterval(beat);
+      if (beat !== null) timers.clearInterval(beat);
       active = null;
     }
-    await write({ ...record, status: result.stopped ? 'stopped' : 'done', totalMs: result.totalMs, blocks: result.blocks, beatAt: now() });
-    await fitAll().catch(() => {});
-    if (!watching) storage.onChanged.removeListener(onChanged);
-    return true;
+    try {
+      if (mine.yielded) {
+        // The earlier run owns the record; show it, and write nothing.
+        const got = await storage.get(key);
+        record = got[key] ?? null;
+        show();
+      } else if (failure) {
+        await write({ ...abandon(record), status: 'stopped', note: runFailedNote(failure), beatAt: now() });
+      } else {
+        await write({ ...record, status: result.stopped ? 'stopped' : 'done', totalMs: result.totalMs, blocks: result.blocks, beatAt: now() });
+        await fitAll().catch(() => {});
+      }
+    } finally {
+      if (!watching) storage.onChanged.removeListener(onChanged);
+    }
+    if (failure) throw failure;
+    return !mine.yielded;
   }
 
   return {
