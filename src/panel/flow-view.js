@@ -1,9 +1,10 @@
-// The flow shown in the main area: toolbar and canvas.
+// The flow shown in the main area: toolbar, canvas and the details column.
 
 import { analyzeFlow } from '../lib/flow-graph.js';
 import { runSummary } from '../lib/flow-record.js';
 import { envVars } from '../lib/vars.js';
 import { createCanvas } from './flow-canvas.js';
+import { createDetails } from './flow-details.js';
 import { createRunner, flowOrigins } from './flow-runner.js';
 import { ensureOrigins } from './permissions.js';
 import { openSearch } from './search.js';
@@ -40,10 +41,12 @@ export function mountFlowView(container, { flowId, getWs, mutate, send, store, i
     el('p', {}, 'Add a request from a collection with ＋ Block.'),
     el('button', { type: 'button', class: 'btn-primary', onclick: addBlock }, icon('plus'), 'Add first block'));
   const body = el('div', { class: 'flow-body' });
-  container.append(toolbar, body);
+  const split = el('div', { class: 'flow-split' }, body);
+  container.append(toolbar, split);
 
   let ws = getWs();
   let selectedId = null;
+  let detailsOpen = true;
   let run = null; // the latest run record, from this page or another one
   const runner = createRunner({ flowId, getWs, send, storage, onRecord: record => { run = record; draw(); } });
 
@@ -78,7 +81,7 @@ export function mountFlowView(container, { flowId, getWs, mutate, send, store, i
 
   // The canvas is made once per mounted flow so pan, zoom, selection and drags survive updates.
   const canvas = createCanvas(body, {
-    onSelect: id => { selectedId = id; draw(); },
+    onSelect: id => { selectedId = id; detailsOpen = true; draw(); },
     onChange: patch => mutate({ type: 'updateFlow', id: flowId, patch }),
     onRunFrom: blockId => runOrStop(blockId),
     onOpenRequest,
@@ -87,6 +90,22 @@ export function mountFlowView(container, { flowId, getWs, mutate, send, store, i
   });
   body.append(empty);
 
+  const details = createDetails(split, {
+    onGo: id => { selectedId = id; detailsOpen = true; draw(); canvas.center(id); },
+    onChange: patch => mutate({ type: 'updateFlow', id: flowId, patch }),
+    onClose: closeDetails,
+    onOpenRequest,
+    store,
+  });
+  function closeDetails() {
+    detailsOpen = false;
+    draw();
+    body.querySelector('.canvas')?.focus({ preventScroll: true });
+  }
+  body.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && detailsOpen && !details.element.hidden && !isEditable(e.target)) { e.preventDefault(); closeDetails(); }
+  });
+
   function draw() {
     const flow = liveFlow(ws, flowId);
     if (!flow) return;
@@ -94,7 +113,10 @@ export function mountFlowView(container, { flowId, getWs, mutate, send, store, i
     name.title = flow.name;
     empty.hidden = flow.blocks.length > 0;
     drawRunState(flow);
-    canvas.render(ws, flow, run, analyzeFlow(ws, flow, envVars(ws)), selectedId);
+    const analysis = analyzeFlow(ws, flow, envVars(ws));
+    canvas.render(ws, flow, run, analysis, selectedId);
+    details.element.hidden = !detailsOpen || !flow.blocks.length;
+    if (!details.element.hidden) details.render(ws, flow, run, analysis, selectedId);
   }
 
   function drawRunState(flow) {
@@ -123,6 +145,7 @@ export function mountFlowView(container, { flowId, getWs, mutate, send, store, i
       document.removeEventListener('keydown', onKey);
       runner.dispose();
       canvas.destroy();
+      details.destroy();
       container.textContent = '';
     },
   };

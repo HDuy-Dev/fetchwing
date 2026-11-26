@@ -39,12 +39,35 @@ export function parseJson(text) {
   }
 }
 
+// The key of a line's path in `highlights`.
+export const pathKey = path => JSON.stringify(path);
+
+// Lines sitting inside a string that holds JSON: no path reaches into a string.
+function insideStrings(lines) {
+  const inside = new Set();
+  lines.forEach((line, i) => {
+    if (line.kind === 'open' && line.embedded) for (let j = i + 1; j < line.end; j++) inside.add(j);
+  });
+  return inside;
+}
+
 // Renders `value` into `container`. `toggleButton` (optional) becomes a
 // Collapse all ⇄ Expand all switch kept in step with the per-block arrows.
 // `onEditString(path, lineIndex)` (optional) adds an edit button to each string holding JSON.
-export function renderJsonView(container, value, { toggleButton, onEditString } = {}) {
+// `highlights` (optional, Map of pathKey -> name) marks those lines with `→ name`.
+// `onAddOutput(path)` (optional) gives the other lines a "＋ Output" button.
+export function renderJsonView(container, value, { toggleButton, onEditString, highlights, onAddOutput } = {}) {
   const lines = jsonLines(value);
   const collapsed = initialCollapsed(lines);
+  const unreachable = onAddOutput ? insideStrings(lines) : null;
+  // The end of a row: its `→ name` tag, or the button that makes it an output.
+  const tail = (line, i) => {
+    const hit = highlights?.get(pathKey(line.path));
+    if (hit) return `<span class="xtag">→ ${escapeHtml(hit)}</span>`;
+    if (!onAddOutput || !line.path.length || unreachable.has(i)) return '';
+    return `<button type="button" class="grab" data-add="${i}" aria-label="${attr(`Add output from line ${i + 1}`)}">＋ Output</button>`;
+  };
+  const rowClass = line => (highlights?.has(pathKey(line.path)) ? 'jrow hit' : 'jrow');
   container.textContent = '';
   container.classList.add('json');
   container.setAttribute('role', 'tree');
@@ -62,15 +85,15 @@ export function renderJsonView(container, value, { toggleButton, onEditString } 
         if (isCollapsed) {
           const close = lines[line.end];
           const label = line.bracket === '[' ? `${line.size} item${line.size === 1 ? '' : 's'}` : `${line.size} key${line.size === 1 ? '' : 's'}`;
-          html.push(`<div class="jrow">${ln}${fold}<span class="jc" style="${pad}">${keyHtml(line)}${line.bracket}<button class="more" data-block="${line.block}">… ${label}</button>${close.text}${close.comma ? ',' : ''}${held}</span></div>`);
+          html.push(`<div class="${rowClass(line)}">${ln}${fold}<span class="jc" style="${pad}">${keyHtml(line)}${line.bracket}<button class="more" data-block="${line.block}">… ${label}</button>${close.text}${close.comma ? ',' : ''}${held}</span>${tail(line, i)}</div>`);
           i = line.end;
           continue;
         }
-        html.push(`<div class="jrow">${ln}${fold}<span class="jc" style="${pad}">${keyHtml(line)}${line.bracket}${held}</span></div>`);
+        html.push(`<div class="${rowClass(line)}">${ln}${fold}<span class="jc" style="${pad}">${keyHtml(line)}${line.bracket}${held}</span>${tail(line, i)}</div>`);
       } else if (line.kind === 'close') {
         html.push(`<div class="jrow">${ln}<span class="fold"></span><span class="jc" style="${pad}">${line.text}${line.comma ? ',' : ''}</span></div>`);
       } else {
-        html.push(`<div class="jrow">${ln}<span class="fold"></span><span class="jc" style="${pad}">${keyHtml(line)}${valueHtml(line)}${line.comma ? ',' : ''}</span></div>`);
+        html.push(`<div class="${rowClass(line)}">${ln}<span class="fold"></span><span class="jc" style="${pad}">${keyHtml(line)}${valueHtml(line)}${line.comma ? ',' : ''}</span>${tail(line, i)}</div>`);
       }
     }
     container.innerHTML = html.join('');
@@ -89,6 +112,8 @@ export function renderJsonView(container, value, { toggleButton, onEditString } 
   }
 
   container.onclick = e => {
+    const add = e.target.closest('[data-add]');
+    if (add) return onAddOutput(lines[Number(add.dataset.add)].path);
     const edit = e.target.closest('[data-edit]');
     if (edit) return onEditString(lines[Number(edit.dataset.edit)].embedded, Number(edit.dataset.edit));
     const target = e.target.closest('[data-block]');

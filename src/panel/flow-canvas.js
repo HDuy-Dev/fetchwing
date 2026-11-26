@@ -205,6 +205,8 @@ export function createCanvas(container, { onSelect, onChange, onRunFrom, onOpenR
   }
 
   function render(nextWs, nextFlow, nextRun, nextAnalysis, nextSelectedId) {
+    // A block selected from outside (e.g. a link in the details) replaces a selected edge, so Delete removes the block.
+    if (nextSelectedId != null && nextSelectedId !== selectedId) selectedEdge = null;
     ws = nextWs; flow = nextFlow; run = nextRun; analysis = nextAnalysis ?? new Map(); selectedId = nextSelectedId ?? null;
     for (const [id, p] of pending) {
       const b = flow.blocks.find(x => x.id === id);
