@@ -213,3 +213,26 @@ test('environments the user made or edited are never folded', () => {
   const { workspace } = mergeRemote(ws({}, { x: mine('x', 3) }), toRemote(ws({}, { y: mine('y', 4) })), 100);
   assert.equal(liveEnvs(workspace).length, 2);
 });
+
+const flow = (id, updatedAt, extra = {}) => ({ id, name: id, order: 0, updatedAt, deleted: false, blocks: [], edges: [], ...extra });
+
+test('flows: later edit wins per flow', () => {
+  const local = { ...ws(), flows: { a: flow('a', 5, { name: 'A local' }), b: flow('b', 1) } };
+  const remote = { ...toRemote(ws()), flows: { a: flow('a', 2), b: flow('b', 8, { name: 'B remote' }) } };
+  const { workspace, upload } = mergeRemote(local, remote);
+  assert.equal(workspace.flows.a.name, 'A local');
+  assert.equal(workspace.flows.b.name, 'B remote');
+  assert.equal(upload, true);
+});
+
+test('a Drive file from an older Fetchwing keeps local flows', () => {
+  const local = { ...ws({ a: item('a', 3) }), flows: { f: flow('f', 4) } };
+  const remote = toRemote(ws({ a: item('a', 3) })); delete remote.flows;
+  const { workspace, upload } = mergeRemote(local, remote);
+  assert.equal(workspace.flows.f.updatedAt, 4);
+  assert.equal(upload, true);
+});
+
+test('toRemote carries flows', () => {
+  assert.deepEqual(toRemote({ ...ws(), flows: { f: flow('f', 1) } }).flows.f.name, 'f');
+});

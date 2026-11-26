@@ -16,12 +16,14 @@ export function toRemote(ws) {
   for (const [id, env] of Object.entries(ws.environments)) {
     environments[id] = { ...clone(env), vars: env.vars.map(v => (v.secret ? { ...v, value: '' } : { ...v })) };
   }
-  return { version: REMOTE_VERSION, items, environments };
+  const flows = {};
+  for (const [id, flow] of Object.entries(ws.flows ?? {})) flows[id] = clone(flow);
+  return { version: REMOTE_VERSION, items, environments, flows };
 }
 
 // Only the defaults from emptyWorkspace(): nothing the user made.
 export function isPristine(ws) {
-  return [...Object.values(ws.items), ...Object.values(ws.environments)].every(x => x.updatedAt === 0);
+  return [...Object.values(ws.items), ...Object.values(ws.environments), ...Object.values(ws.flows ?? {})].every(x => x.updatedAt === 0);
 }
 
 function withLocalItemState(remoteItem, localItem) {
@@ -117,10 +119,11 @@ export function mergeRemote(local, remote, now = Date.now()) {
   const base = isPristine(local) ? { items: {}, environments: {}, activeEnvId: null } : local;
   const items = mergeMap(base.items, remote.items ?? {}, withLocalItemState);
   const envs = mergeMap(base.environments, remote.environments ?? {}, withLocalSecrets);
+  const flows = mergeMap(base.flows ?? {}, remote.flows ?? {}, r => clone(r));
   const folded = foldDefaultCollections(items.map, now);
   const foldedEnvs = foldDefaultEnvironments(envs.map);
   return {
-    workspace: { items: folded.items, environments: foldedEnvs.environments, activeEnvId: pickActiveEnv(foldedEnvs.environments, base.activeEnvId) },
-    upload: items.upload || envs.upload || folded.changed || foldedEnvs.changed,
+    workspace: { items: folded.items, environments: foldedEnvs.environments, flows: flows.map, activeEnvId: pickActiveEnv(foldedEnvs.environments, base.activeEnvId) },
+    upload: items.upload || envs.upload || flows.upload || folded.changed || foldedEnvs.changed,
   };
 }
