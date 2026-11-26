@@ -26,7 +26,7 @@
 .flow-empty .btn-primary { margin-top: 12px; }
 .flow-empty .btn-primary:disabled { opacity: .5; cursor: default; filter: none; }
 .flow-body .flow-empty { pointer-events: none; z-index: 2; }
-.flow-body .flow-empty > * { pointer-events: auto; }
+.flow-body .flow-empty .btn-primary { pointer-events: auto; }
 
 /* ---------- canvas ---------- */
 .canvas { position: absolute; inset: 0; overflow: hidden; cursor: grab; background: var(--bg); touch-action: none; outline: none; }

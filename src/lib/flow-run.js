@@ -54,7 +54,7 @@ export function runFlow(opts) {
   // A throwing listener must not leave the run half-updated, so its errors are ignored.
   const set = (id, result) => {
     blocks[id] = result;
-    try { onUpdate(id, result); } catch { /* listener error */ }
+    try { onUpdate(id, result); } catch (err) { console.error('Flow run listener failed', err); } // keep going: the run must not break
   };
   const errorText = e => e?.message || String(e);
 
@@ -161,7 +161,7 @@ export function runFlow(opts) {
       for (const { name, path } of block.outputs || []) {
         const read = readOutput(response, path);
         if (read.error === 'truncated') {
-          return { state: 'failed', errorKind: 'truncated', error: `The response was cut off before ${path}`, response, outputs };
+          return { state: 'failed', errorKind: 'truncated', error: `Response too large to read output \`${name}\``, response, outputs };
         }
         if (read.found) outputs[name] = read.value;
       }

@@ -157,6 +157,7 @@ test('an output past a truncated body fails with kind truncated', async () => {
   const result = await runFlow(base({ flow, ws, send: f.send }));
   assert.equal(result.blocks.x.state, 'failed');
   assert.equal(result.blocks.x.errorKind, 'truncated');
+  assert.equal(result.blocks.x.error, 'Response too large to read output `deep`');
 });
 
 test('a variable with no source is missing, never sent, downstream skipped', async () => {
@@ -268,7 +269,8 @@ test('a send that resolves ok without a response fails as network and the run en
   assert.equal(result.blocks.d.state, 'skipped');
 });
 
-test('a rejected send or a throwing onUpdate never leaves a block running', async () => {
+test('a rejected send or a throwing onUpdate never leaves a block running', async t => {
+  t.mock.method(console, 'error', () => {});
   const { flow, ws } = diamond();
   const send = async ({ blockId }) => {
     if (blockId === 'b') throw new Error('kaput');
@@ -318,4 +320,17 @@ test('a throw while starting a later block rejects the run instead of hanging', 
   ]);
   assert.equal(settled, 'rejected: true');
   assert.equal(f.calls[0].blockId, 'a');
+});
+
+test('a throwing onUpdate listener is logged, not fatal', async () => {
+  const ws = { items: { r: req('r') } };
+  const flow = { blocks: [block('x', 'r')], edges: [] };
+  const f = fakeSend({ x: { ok: true, response: json(200, {}) } });
+  const orig = console.error; const logged = [];
+  console.error = (...a) => logged.push(a);
+  try {
+    const result = await runFlow(base({ flow, ws, send: f.send, onUpdate: () => { throw new Error('boom'); } }));
+    assert.equal(result.blocks.x.state, 'ok');
+  } finally { console.error = orig; }
+  assert.equal(logged[0][0], 'Flow run listener failed');
 });

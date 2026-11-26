@@ -54,7 +54,7 @@ export function renderFlowList(container, ws, selectedFlowId, handlers) {
     row.addEventListener('keydown', e => {
       if (e.target !== row) return;
       if (e.key === 'F2') startRename(row, flow);
-      if (e.key === 'Enter') handlers.onOpen(flow.id);
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handlers.onOpen(flow.id); }
     });
     row.addEventListener('contextmenu', e => {
       e.preventDefault();

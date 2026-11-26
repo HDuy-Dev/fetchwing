@@ -71,7 +71,7 @@ export function runFromHere(record, flow, blockId, { envChanged = false, outdate
 }
 
 export function fitRecords(records, maxBytes = 8_000_000) {
-  const size = rs => JSON.stringify(rs).length;
+  const size = rs => new TextEncoder().encode(JSON.stringify(rs)).length;
   if (size(records) <= maxBytes) return records;
   const out = records.map(r => structuredClone(r));
   const oldestFirst = out.map((r, i) => i).sort((i, j) => out[i].startedAt - out[j].startedAt);

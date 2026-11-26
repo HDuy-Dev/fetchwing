@@ -746,6 +746,7 @@ async function revealFlow(flowId) {
   if (!isLiveFlow(flowId)) return toast(ERRORS.not_found);
   dismissDialog();
   state.section = 'flows';
+  store.set('section', 'flows');
   selectFlow(flowId);
   await refreshOrigin();
 }

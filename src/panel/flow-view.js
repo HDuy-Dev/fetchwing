@@ -62,6 +62,10 @@ export function mountFlowView(container, { flowId, getWs, mutate, send, store, i
     if (!flow?.blocks.length) return;
     const origins = flowOrigins(current, flow, { from });
     ensureOrigins(origins).then(answer => {
+      if (answer === 'pending') {
+        toast('Allow access in the window that opened, then run again.', 4000);
+        return;
+      }
       if (answer !== 'granted') {
         const hosts = origins.map(o => new URL(o).host).join(', ');
         toast(`Fetchwing needs access to ${hosts} to run this flow`, 4000);

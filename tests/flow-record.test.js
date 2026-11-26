@@ -152,3 +152,11 @@ test('runSummary: not run, running, done, stopped, abandoned', async () => {
   assert.equal(text(runSummary({ ...done, status: 'stopped' })), 'Stopped · ✓1 ✕1 ⊘1 !1 · 1 mock · 1234 ms');
   assert.equal(text(runSummary({ status: 'abandoned', note: 'Gone', totalMs: null, blocks: { a: { state: 'idle' } } })), 'Gone');
 });
+
+test('fitRecords measures UTF-8 bytes, not characters', () => {
+  const recs = [big('old', 1, 0), big('new', 2, 0)];
+  for (const r of recs) r.blocks.a.response.bodyText = '€'.repeat(1000); // 3 bytes each
+  const chars = JSON.stringify(recs).length;
+  const out = fitRecords(recs, chars + 100); // fits by characters, not by bytes
+  assert.equal(out[0].blocks.a.response.dropped, true);
+});

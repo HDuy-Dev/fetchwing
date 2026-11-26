@@ -124,7 +124,7 @@ export function createCanvas(container, { onSelect, onChange, onRunFrom, onOpenR
       for (const n of entry?.missing ?? []) flags.push(['warn', `! Missing ${n}`]);
       for (const n of entry?.conflicts ?? []) flags.push(['warn', `! Conflict ${n}`]);
     }
-    const mocked = Boolean(request?.mock?.enabled);
+    const mocked = result?.state === 'ok' || result?.state === 'failed' ? Boolean(result.mock) : Boolean(request?.mock?.enabled);
     node.className = `node n-${st.cls}${b.id === selectedId ? ' sel' : ''}${mocked ? ' mocked' : ''}${drag?.id === b.id ? ' dragging' : ''}`;
     node.setAttribute('aria-label', `${method} ${name}: ${st.text}`.trim());
     node.replaceChildren(...[
