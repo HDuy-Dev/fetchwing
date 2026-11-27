@@ -25,3 +25,12 @@ export function filterEnvs(envs, query) {
   const needle = query.trim().toLowerCase();
   return needle ? envs.filter(e => e.name.toLowerCase().includes(needle)) : envs;
 }
+
+// The rows of the environment picker; the first and last stay whatever is searched.
+export function pickerRows(envs, query, activeId) {
+  return [
+    { kind: 'none', active: !activeId },
+    ...filterEnvs(envs, query).map(e => ({ kind: 'env', id: e.id, name: e.name, active: e.id === activeId })),
+    { kind: 'create' },
+  ];
+}

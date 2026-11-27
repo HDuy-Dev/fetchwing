@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { copyName, savableVars, hintName, envPatch, sameEnv, filterEnvs } from '../src/lib/env-form.js';
+import { copyName, savableVars, hintName, envPatch, sameEnv, filterEnvs, pickerRows } from '../src/lib/env-form.js';
 
 const v = (key, value = '') => ({ key, value, secret: false });
 
@@ -37,4 +37,14 @@ test('filterEnvs matches names, ignoring case and outer spaces', () => {
   assert.deepEqual(filterEnvs(envs, '  device '), [envs[0]]);
   assert.deepEqual(filterEnvs(envs, ''), envs);
   assert.deepEqual(filterEnvs(envs, 'zzz'), []);
+});
+
+test('pickerRows keeps No Environment and Create around the matches', () => {
+  const envs = [{ id: 'a', name: 'Local' }, { id: 'b', name: 'Staging' }];
+  assert.deepEqual(pickerRows(envs, 'stag', 'b'), [
+    { kind: 'none', active: false },
+    { kind: 'env', id: 'b', name: 'Staging', active: true },
+    { kind: 'create' },
+  ]);
+  assert.deepEqual(pickerRows(envs, 'zzz', null), [{ kind: 'none', active: true }, { kind: 'create' }]);
 });

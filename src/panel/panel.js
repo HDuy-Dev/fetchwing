@@ -13,6 +13,7 @@ import { renderResponse } from './response-view.js';
 import { renderMockEditor, mockFromResponse, setMockOn } from './mock-editor.js';
 import { createEnvView } from './env-view.js';
 import { renderEnvList } from './env-list.js';
+import { initEnvPicker } from './env-picker.js';
 import { copyName } from '../lib/env-form.js';
 import { tabKind, insertTab, pruneTabs } from '../lib/tab-model.js';
 import { openSettings } from './settings-view.js';
@@ -117,7 +118,6 @@ const mocksOn = () => liveRequests(state.ws).filter(r => r.mock.enabled);
 
 $('logoMark').append(icon('logo'));
 $('searchBox').append(icon('search'), el('span', {}, 'Search requests'), el('span', { class: 'ml-auto mono', style: 'font-size:11px' }, navigator.platform.includes('Mac') ? '⌘K' : 'Ctrl K'));
-$('envIcon').append(icon('braces'));
 $('settingsBtn').append(icon('gear'));
 $('drawerToggle').append(icon('menu'));
 const RAIL = { collections: ['folder', 'Collections'], environments: ['braces', 'Environments'], mocks: ['mock', 'Mocks'], flows: ['flow', 'Flows'] };
@@ -547,15 +547,12 @@ function renderBottom() {
 
 // ---------- top bar ----------
 
-function renderTopbar() {
-  const sel = $('envSelect');
-  sel.textContent = '';
-  sel.append(el('option', { value: '' }, 'No environment'));
-  for (const env of liveEnvironments(state.ws)) sel.append(el('option', { value: env.id, selected: env.id === state.ws.activeEnvId }, env.name));
-  if (!state.ws.activeEnvId) sel.value = '';
-}
+const envPicker = initEnvPicker($('envPill'), {
+  getWs: () => state.ws,
+  onPick: id => mutate({ type: 'setActiveEnv', id }),
+  onCreate: () => createEnv(),
+});
 
-$('envSelect').addEventListener('change', e => mutate({ type: 'setActiveEnv', id: e.target.value || null }));
 $('settingsBtn').addEventListener('click', () => openSettings(state));
 $('searchBox').addEventListener('click', () => openSearch(state.ws, id => { expandPath(id); select(id); }));
 $('searchBox').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $('searchBox').click(); } });
@@ -759,7 +756,7 @@ function render() {
     : state.openTabs.includes(state.activeId) ? state.activeId : state.openTabs[state.openTabs.length - 1] ?? null;
   state.activeId = activeId;
 
-  renderTopbar();
+  envPicker.render();
   renderSide();
   if (renderFlowMain()) return;
   drawTabs();
