@@ -1,7 +1,8 @@
 // Running a flow: send each block once its upstream blocks are ok, feeding
 // their outputs into later requests as {{variables}}.
 
-import { analyzeFlow, topoOrder, upstream, blockFingerprint } from './flow-graph.js';
+import { analyzeFlow, topoOrder, upstream, fingerprintOf, isLogic, visibleProviders } from './flow-graph.js';
+import { checkLogicValue, scanVars } from './logic-block.js';
 import { readOutput } from './flow-path.js';
 import { resolveRequest, withFlowVars } from './vars.js';
 
@@ -37,7 +38,7 @@ function sentOf(resolved) {
 
 export function runFlow(opts) {
   const {
-    flow, ws, envVars = {}, send, signal, onUpdate = () => {},
+    flow, ws, envVars = {}, send, runLogic = null, signal, onUpdate = () => {},
     now = Date.now, sleep = ms => new Promise(r => setTimeout(r, ms)),
     from = null, previous = null,
   } = opts;
@@ -73,7 +74,8 @@ export function runFlow(opts) {
 
   // Rejects when the engine itself throws (e.g. a request it can't resolve), so callers never wait forever.
   return new Promise((resolve, reject) => {
-    let inFlight = 0;
+    let inFlight = 0; // requests, limited by `concurrency`
+    let logicInFlight = 0; // logic blocks; the script runner runs them one at a time
     let stopped = false;
     let finished = false;
 
@@ -109,21 +111,24 @@ export function runFlow(opts) {
     function start(id) {
       if (stopped) return;
       const block = byId.get(id);
+      const logic = isLogic(block);
       const { request, uses } = info.get(id);
+      const optional = new Set(logic ? scanVars(block.script).optional : []);
       const flowVars = {};
       const unset = [];
       for (const { name, from: source } of uses) {
         if (source === 'env') continue;
         const outputs = blocks[source]?.outputs || {};
         if (Object.prototype.hasOwnProperty.call(outputs, name)) flowVars[name] = outputs[name];
-        else unset.push(name);
+        else if (!optional.has(name)) unset.push(name);
       }
       if (unset.length) {
         set(id, { state: 'missing', errorKind: 'missing', error: `Missing variables: ${unset.join(', ')}` });
         return;
       }
+      if (logic) return startLogic(id, block);
       const sent = sentOf(resolveRequest(request, withFlowVars(envVars, flowVars)));
-      const base = { sent, startMs: at(), fingerprint: blockFingerprint(request, envVars), mock: Boolean(request.mock?.enabled) };
+      const base = { sent, startMs: at(), fingerprint: fingerprintOf(ws, block, envVars), mock: Boolean(request.mock?.enabled) };
       set(id, { ...base, state: 'running' });
       if (stopped) return; // aborted by the listener
       inFlight++;
@@ -139,6 +144,52 @@ export function runFlow(opts) {
         set(id, { ...base, ...result, endMs: at() });
         pump();
       }).catch(fail);
+    }
+
+    // fw.vars: every upstream output (nearest provider; conflicts left out), then the environment.
+    function logicVars(id) {
+      const vars = {};
+      const warnings = [];
+      for (const [name, provider] of visibleProviders(flow, id)) {
+        if (provider === null) {
+          warnings.push(`\`${name}\` comes from more than one block, so fw.vars leaves it out`);
+          continue;
+        }
+        const outputs = blocks[provider]?.outputs || {};
+        if (Object.prototype.hasOwnProperty.call(outputs, name)) vars[name] = outputs[name];
+      }
+      for (const [name, value] of Object.entries(envVars)) {
+        if (!Object.prototype.hasOwnProperty.call(vars, name)) vars[name] = value;
+      }
+      return { vars, warnings };
+    }
+
+    function startLogic(id, block) {
+      const { vars, warnings } = logicVars(id);
+      const base = { startMs: at(), fingerprint: fingerprintOf(ws, block, envVars), logic: true };
+      set(id, { ...base, state: 'running' });
+      if (stopped) return;
+      logicInFlight++;
+      const job = runLogic
+        ? Promise.resolve().then(() => runLogic({ blockId: id, script: block.script ?? '', vars, env: { ...envVars }, signal }))
+        : Promise.resolve({ logs: [], error: "Logic blocks can't run here" });
+      job.catch(e => ({ logs: [], error: errorText(e) })).then(res => {
+        logicInFlight--;
+        if (stopped) return;
+        set(id, { ...base, ...settleLogic(block, res, warnings), endMs: at() });
+        pump();
+      }).catch(fail);
+    }
+
+    function settleLogic(block, res, warnings) {
+      const logs = res?.logs ?? [];
+      if (res?.cancelled) return { state: 'failed', errorKind: 'cancelled', error: res.error || 'Stopped', logs, warnings };
+      if (res?.timedOut) return { state: 'failed', errorKind: 'timeout', error: res.error, logs, warnings };
+      if (res?.error !== undefined) return { state: 'failed', errorKind: 'script', error: res.error, logs, warnings };
+      const checked = checkLogicValue(res.value, (block.outputs || []).map(o => o.name));
+      const all = [...warnings, ...checked.warnings];
+      if (checked.error) return { state: 'failed', errorKind: 'script', error: checked.error, logs, warnings: all, value: res.value };
+      return { state: 'ok', outputs: checked.outputs, logs, warnings: all, value: res.value };
     }
 
     async function exec(id, block, request, vars) {
@@ -180,13 +231,13 @@ export function runFlow(opts) {
           if (ps.some(deadEnd)) {
             set(id, { state: 'skipped' });
             progress = true;
-          } else if (inFlight < concurrency && ps.every(p => blocks[p].state === 'ok')) {
+          } else if ((isLogic(byId.get(id)) || inFlight < concurrency) && ps.every(p => blocks[p].state === 'ok')) {
             start(id);
             progress = true;
           }
         }
       }
-      if (inFlight === 0) {
+      if (inFlight === 0 && logicInFlight === 0) {
         // Anything still queued can never become ready (a cycle).
         for (const id of order) if (blocks[id].state === 'queued') set(id, { state: 'skipped' });
         finish();
