@@ -203,3 +203,19 @@ test('applyEnvChanges ignores empty keys', () => {
   const out = apply(envWith([]), { type: 'applyEnvChanges', id: 'e', changes: [{ op: 'set', key: '', value: 'x' }] });
   assert.deepEqual(out.environments.e.vars, []);
 });
+
+test('sameRequestContent compares the script, treating a missing one as empty', async () => {
+  const { sameRequestContent } = await import('../src/lib/model.js');
+  const base = newRequest({ url: 'u' });
+  const legacy = { ...base };
+  delete legacy.script;
+  assert.equal(sameRequestContent({ ...base, script: '' }, legacy), true);
+  assert.equal(sameRequestContent({ ...base, script: 'a' }, { ...base, script: 'b' }), false);
+  assert.equal(sameRequestContent({ ...base, url: 'x' }, base), false);
+});
+
+test('applyEnvChanges with duplicate keys sets the last one and unsets all', () => {
+  const ws = envWith([{ key: 't', value: 'a', secret: false }, { key: 't', value: 'b', secret: true }, { key: 'd', value: '1', secret: false }, { key: 'd', value: '2', secret: false }]);
+  const out = apply(ws, { type: 'applyEnvChanges', id: 'e', changes: [{ op: 'set', key: 't', value: 'new' }, { op: 'unset', key: 'd' }] });
+  assert.deepEqual(out.environments.e.vars, [{ key: 't', value: 'a', secret: false }, { key: 't', value: 'new', secret: true }]);
+});

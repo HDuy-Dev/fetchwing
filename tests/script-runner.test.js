@@ -66,3 +66,12 @@ test('script-sandbox is in sync', () => {
   const sandbox = readFileSync(new URL('src/sandbox/script-sandbox.js', root), 'utf8');
   assert.equal(sandbox, buildScriptSandbox(runtime), 'run `npm run sync`');
 });
+
+test('each run gets a fresh frame and the old one is destroyed', async () => {
+  const { frames, createFrame } = fakeFrames();
+  const runner = createScriptRunner({ createFrame });
+  await runner.run({ script: '', response, vars: {} });
+  await runner.run({ script: '', response, vars: {} });
+  assert.equal(frames.length, 2);
+  assert.deepEqual(frames.map(f => f.destroyed), [true, true]);
+});

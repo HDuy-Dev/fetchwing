@@ -16,6 +16,9 @@
   "sandbox": {
     "pages": ["src/sandbox/script.html"]
   },
+  "content_security_policy": {
+    "sandbox": "sandbox allow-scripts; script-src 'self' 'unsafe-eval'; default-src 'none'"
+  },
   "background": {
     "service_worker": "src/background.js",
     "type": "module"

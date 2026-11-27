@@ -1,6 +1,7 @@
 // Runs request scripts in the sandboxed page (src/sandbox/script.html): MV3
-// extension pages can't eval, sandboxed pages can. One hidden iframe is kept
-// and reused; a script that runs too long gets its iframe thrown away.
+// extension pages can't eval, sandboxed pages can. Each run gets a fresh
+// hidden iframe, thrown away afterwards, so one script can't watch or answer
+// for the next.
 
 export const TIMEOUT_ERROR = 'Script timed out after 5 s';
 
@@ -39,7 +40,17 @@ export function createScriptRunner({ createFrame, timeoutMs = 5000, setTimer = s
       ready = null;
       resolve({ logs: [], changes: [], error: TIMEOUT_ERROR });
     }, timeoutMs);
-    pending = { runId, resolve: result => { clearTimer(timer); pending = null; resolve(result); } };
+    pending = {
+      runId,
+      resolve: result => {
+        clearTimer(timer);
+        pending = null;
+        frame?.destroy();
+        frame = null;
+        ready = null;
+        resolve(result);
+      },
+    };
     ensureFrame().then(() => {
       if (pending?.runId === runId) frame.post({ source: 'fetchwing-panel', type: 'run', runId, script, response, vars });
     });

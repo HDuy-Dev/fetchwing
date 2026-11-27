@@ -17,6 +17,11 @@ export function newRequest(fields = {}) {
   };
 }
 
+// Same method, URL, headers, body and script (a request saved before scripts existed has none).
+const CONTENT_FIELDS = ['method', 'url', 'headers', 'body'];
+export const sameRequestContent = (a, b) => CONTENT_FIELDS.every(k => JSON.stringify(a[k]) === JSON.stringify(b[k]))
+  && (a.script ?? '') === (b.script ?? '');
+
 export function emptyWorkspace() {
   const collectionId = newId();
   const envId = newId();
@@ -199,8 +204,9 @@ export function applyMutation(ws, m, now) {
       for (const c of m.changes ?? []) {
         const key = String(c.key ?? '');
         if (!key) continue;
-        const at = vars.findIndex(v => v.key === key);
-        if (c.op === 'unset') { if (at !== -1) vars.splice(at, 1); }
+        // {{key}} resolves to the last row with that key, so set that one and unset them all.
+        const at = vars.findLastIndex(v => v.key === key);
+        if (c.op === 'unset') { for (let i = vars.length - 1; i >= 0; i--) if (vars[i].key === key) vars.splice(i, 1); }
         else if (c.op === 'set') {
           const value = String(c.value ?? '');
           if (at === -1) vars.push({ key, value, secret: false });
