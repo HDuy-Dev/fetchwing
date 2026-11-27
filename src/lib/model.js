@@ -250,6 +250,16 @@ export function applyMutation(ws, m, now) {
       touchFlow(m.id, patch);
       return { workspace: next };
     }
+    // One block's fields, merged into its latest saved copy, so saves sent from a stale view
+    // (a script edit, then an outputs edit) don't undo each other.
+    case 'updateBlock': {
+      const flow = liveFlow(m.id);
+      if (!flow) return { error: 'not_found' };
+      if (!flow.blocks.some(b => b.id === m.blockId)) return { error: 'not_found' };
+      const { id: _ignored, ...patch } = m.patch || {};
+      touchFlow(m.id, { blocks: flow.blocks.map(b => (b.id === m.blockId ? { ...b, ...patch } : b)) });
+      return { workspace: next };
+    }
     case 'deleteFlow': {
       if (!liveFlow(m.id)) return { error: 'not_found' };
       touchFlow(m.id, { deleted: true });

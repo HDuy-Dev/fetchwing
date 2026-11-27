@@ -99,6 +99,7 @@ export function mountFlowView(container, { flowId, getWs, mutate, send, store, i
   const canvas = createCanvas(body, {
     onSelect: id => { selectedId = id; detailsOpen = true; draw(); },
     onChange: patch => mutate({ type: 'updateFlow', id: flowId, patch }),
+    onBlockChange: (blockId, patch) => mutate({ type: 'updateBlock', id: flowId, blockId, patch }),
     onRunFrom: blockId => runOrStop(blockId),
     onOpenRequest,
     onLogicAdded: () => details.openTab?.('script'),
@@ -109,7 +110,7 @@ export function mountFlowView(container, { flowId, getWs, mutate, send, store, i
 
   const details = createDetails(split, {
     onGo: id => { selectedId = id; detailsOpen = true; draw(); canvas.center(id); },
-    onChange: patch => mutate({ type: 'updateFlow', id: flowId, patch }),
+    onBlockChange: (blockId, patch) => mutate({ type: 'updateBlock', id: flowId, blockId, patch }),
     onClose: closeDetails,
     onOpenRequest,
     store,

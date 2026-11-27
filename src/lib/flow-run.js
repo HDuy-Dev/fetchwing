@@ -150,7 +150,8 @@ export function runFlow(opts) {
     function logicVars(id) {
       const vars = {};
       const warnings = [];
-      for (const [name, provider] of visibleProviders(flow, id)) {
+      const providers = visibleProviders(flow, id);
+      for (const [name, provider] of providers) {
         if (provider === null) {
           warnings.push(`\`${name}\` comes from more than one block, so fw.vars leaves it out`);
           continue;
@@ -158,8 +159,9 @@ export function runFlow(opts) {
         const outputs = blocks[provider]?.outputs || {};
         if (Object.prototype.hasOwnProperty.call(outputs, name)) vars[name] = outputs[name];
       }
+      // A name an upstream block declares belongs to the flow: no env fallback, even without a value.
       for (const [name, value] of Object.entries(envVars)) {
-        if (!Object.prototype.hasOwnProperty.call(vars, name)) vars[name] = value;
+        if (!providers.has(name)) vars[name] = value;
       }
       return { vars, warnings };
     }

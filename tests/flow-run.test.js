@@ -474,3 +474,15 @@ test('a logic block does not wait for a request concurrency slot', async () => {
   assert.deepEqual(order, ['L', 'A']);
   assert.equal(result.blocks.L.state, 'ok');
 });
+
+test('a conflicting or unproduced upstream name never falls back to the env value', async () => {
+  const ws = { items: { ra: req('ra'), rb: req('rb') } };
+  const flow = {
+    blocks: [block('A', 'ra', [out('y'), out('k')]), block('B', 'rb', [out('y')]), logic('L', 'return { all: fw.vars.toObject() }', ['all'])],
+    edges: [{ from: 'A', to: 'L' }, { from: 'B', to: 'L' }],
+  };
+  // A's body has no `k`, so A declares k but produces no value.
+  const f = fakeSend({ A: { ok: true, response: json(200, { y: 1 }) }, B: { ok: true, response: json(200, { y: 2 }) } });
+  const result = await runFlow(base({ flow, ws, envVars: { y: 'env-y', k: 'env-k', other: 'o' }, send: f.send, runLogic: realLogic().runLogic }));
+  assert.deepEqual(result.blocks.L.outputs, { all: { other: 'o' } });
+});

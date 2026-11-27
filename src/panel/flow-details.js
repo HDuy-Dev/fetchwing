@@ -112,8 +112,8 @@ export function envView(ws, run, fromSnapshot) {
   return { vars: envVars(ws), secret: name => secrets.has(name) };
 }
 
-// options: { onGo(blockId), onChange(patch), onClose(), onOpenRequest?(requestId), store? }
-export function createDetails(container, { onGo, onChange, onClose, onOpenRequest, store }) {
+// options: { onGo(blockId), onBlockChange(blockId, patch), onClose(), onOpenRequest?(requestId), store? }
+export function createDetails(container, { onGo, onBlockChange, onClose, onOpenRequest, store }) {
   const grip = el('div', { class: 'dt-grip', role: 'separator', 'aria-orientation': 'vertical', 'aria-label': 'Resize details', tabindex: '0', title: 'Drag to resize, double-click to reset' });
   const head = el('div', { class: 'dt-head' });
   const tabsEl = el('div', { class: 'dt-tabs', role: 'tablist', 'aria-label': 'Block details' });
@@ -298,6 +298,12 @@ export function createDetails(container, { onGo, onChange, onClose, onOpenReques
     const name = nameOf(id);
     const mocked = done(result) ? result.mock : request?.mock?.enabled;
     const logic = Boolean(entry?.logic);
+    const metaRow = el('div', { class: 'dt-meta' }, meta);
+    // While the name is being edited, only the status line changes, so the field keeps focus.
+    if (logic && nameField?.id === id && document.activeElement === nameField.input && head.contains(nameField.input)) {
+      head.lastChild.replaceWith(metaRow);
+      return;
+    }
     head.replaceChildren(
       el('div', { class: 'dt-top' },
         logic ? el('span', { class: 'm JS' }, 'JS') : request ? el('span', { class: `m ${request.method}` }, request.method) : null,
@@ -305,7 +311,7 @@ export function createDetails(container, { onGo, onChange, onClose, onOpenReques
         mocked ? el('span', { class: 'badge', title: 'Answered by the mock' }, 'MOCK') : null,
         outdatedOf(id) ? el('span', { class: 'stale', title: logic ? 'The script changed after this run' : 'The request changed after this run' }, 'outdated') : null,
         acts()),
-      el('div', { class: 'dt-meta' }, meta));
+      metaRow);
   }
 
   const kindOf = id => (isLogic(blockOf(id)) ? 'logic' : 'request');
@@ -334,22 +340,33 @@ export function createDetails(container, { onGo, onChange, onClose, onOpenReques
   }
 
   // ---------- logic blocks ----------
-  const saveBlock = (id, patch) => Promise.resolve(onChange({ blocks: c.flow.blocks.map(x => (x.id === id ? { ...x, ...patch } : x)) }))
+  // One block's fields go through onBlockChange, which merges them into the latest saved block.
+  const saveBlock = (id, patch) => Promise.resolve(onBlockChange(id, patch))
     .then(res => { if (res?.ok === false) toast(res.error ? `Could not save: ${res.error}` : 'Could not save the block'); return res; });
+
+  // The name field and the Script tab keep their nodes across repaints (save echoes, run updates),
+  // so typing keeps its undo history, IME composition, scroll and caret, and clicks aren't lost.
+  let nameField = null; // { id, input }
+  let logicUi = null; // { id, top, outs, area, list, count, outsKey }
 
   function nameInput(id) {
     const b = blockOf(id);
-    const commit = input => {
-      const name = input.value.trim() || 'Logic';
-      input.value = name;
-      if (name !== (b.name || 'Logic')) saveBlock(id, { name });
-    };
-    return el('input', { type: 'text', class: 'dt-name dt-name-input', value: b.name || 'Logic', 'aria-label': 'Block name', spellcheck: 'false', dataset: { key: 'logic-name' },
-      onblur: e => commit(e.target),
-      onkeydown: e => {
-        if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); }
-        else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); e.target.value = b.name || 'Logic'; e.target.blur(); }
-      } });
+    if (nameField?.id !== id) {
+      const current = () => blockOf(id)?.name || 'Logic';
+      const input = el('input', { type: 'text', class: 'dt-name dt-name-input', 'aria-label': 'Block name', spellcheck: 'false', dataset: { key: 'logic-name' },
+        onblur: () => {
+          const name = input.value.trim() || 'Logic';
+          input.value = name;
+          if (name !== current()) saveBlock(id, { name });
+        },
+        onkeydown: e => {
+          if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+          else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); input.value = current(); input.blur(); }
+        } });
+      nameField = { id, input };
+    }
+    if (document.activeElement !== nameField.input) nameField.input.value = b.name || 'Logic';
+    return nameField.input;
   }
 
   function flushScript() {
@@ -361,10 +378,8 @@ export function createDetails(container, { onGo, onChange, onClose, onOpenReques
     saveBlock(id, { script: text }).then(() => { if (draft?.id === id && draft.text === text) draft = null; });
   }
 
-  function scriptTab(id) {
-    const b = blockOf(id);
-    if (draft && draft.id === id && draft.text === b.script) draft = null;
-    const text = draft?.id === id ? draft.text : b.script ?? '';
+  function buildLogicUi(id) {
+    const outputsNow = () => blockOf(id)?.outputs || [];
     const area = el('textarea', { class: 'code-area dt-script', spellcheck: 'false', 'aria-label': 'Script', placeholder: "const total = Number(fw.vars.get('price')) * 2;\nreturn { total };", dataset: { key: 'script' },
       oninput: e => {
         draft = { id, text: e.target.value };
@@ -372,33 +387,54 @@ export function createDetails(container, { onGo, onChange, onClose, onOpenReques
         saveTimer = setTimeout(flushScript, SAVE_DELAY);
       },
       onblur: flushScript });
-    area.value = text;
-    const outputs = b.outputs || [];
     const newName = el('input', { type: 'text', placeholder: 'Output name', 'aria-label': 'New output name', spellcheck: 'false', dataset: { key: 'logic-out-name' },
       onkeydown: e => { if (e.key === 'Enter') { e.preventDefault(); addOutput(); } } });
     const error = el('div', { class: 'out-error', role: 'alert', hidden: true });
     function addOutput() {
+      const outputs = outputsNow();
       const problem = outputNameError(newName.value, outputs, -1);
       if (problem) { error.textContent = problem; error.hidden = false; return; }
-      saveOutputs(b, [...outputs, { name: newName.value.trim() }]);
-      focusKey('logic-out-name');
+      error.hidden = true;
+      saveBlock(id, { outputs: [...outputs, { name: newName.value.trim() }] });
+      newName.value = '';
     }
     const detect = () => {
+      const outputs = outputsNow();
       const names = detectOutputs(area.value).filter(n => !outputs.some(o => o.name === n));
       if (!names.length) { toast('No new outputs found'); return; }
-      saveOutputs(b, [...outputs, ...names.map(name => ({ name }))]);
+      saveBlock(id, { outputs: [...outputs, ...names.map(name => ({ name }))] });
       toast(`Added ${names.join(', ')}`);
     };
-    return [
-      el('div', { class: 'dt-sect' }, area, el('div', { class: 'dt-dim dt-hint' }, SCRIPT_HINT)),
-      el('div', { class: 'dt-sect' },
-        el('h4', {}, 'Outputs', el('span', { class: 'count' }, String(outputs.length)),
-          el('button', { type: 'button', class: 'mini-btn ml', title: 'Add the keys of the last return { … } in the script', onclick: detect }, 'Detect')),
-        outputs.length ? el('div', { class: 'logic-outs' }, outputs.map((o, i) => el('span', { class: 'logic-out' }, el('span', { class: 'vn' }, o.name),
-          iconButton('x', `Remove output ${o.name}`, () => saveOutputs(b, outputs.filter((_, j) => j !== i)))))) : dim('No outputs yet. Name the keys your script returns.'),
-        el('div', { class: 'out-edit' }, newName, el('button', { type: 'button', class: 'mini-btn', onclick: addOutput }, '＋ Add output')),
-        error),
-    ];
+    const count = el('span', { class: 'count' });
+    const list = el('div');
+    const top = el('div', { class: 'dt-sect' }, area, el('div', { class: 'dt-dim dt-hint' }, SCRIPT_HINT));
+    const outs = el('div', { class: 'dt-sect' },
+      el('h4', {}, 'Outputs', count,
+        el('button', { type: 'button', class: 'mini-btn ml', title: 'Add the keys of the last return { … } in the script', onclick: detect }, 'Detect')),
+      list,
+      el('div', { class: 'out-edit' }, newName, el('button', { type: 'button', class: 'mini-btn', onclick: addOutput }, '＋ Add output')),
+      error);
+    return { id, top, outs, area, list, count, outsKey: null };
+  }
+
+  function scriptTab(id) {
+    const b = blockOf(id);
+    if (logicUi?.id !== id) logicUi = buildLogicUi(id);
+    const ui = logicUi;
+    if (draft && draft.id === id && draft.text === b.script) draft = null;
+    // A focused editor keeps what the user is typing; otherwise show the draft or the saved script.
+    if (document.activeElement !== ui.area) ui.area.value = draft?.id === id ? draft.text : b.script ?? '';
+    const outputs = b.outputs || [];
+    const key = JSON.stringify(outputs.map(o => o.name));
+    if (key !== ui.outsKey) {
+      ui.outsKey = key;
+      ui.count.textContent = String(outputs.length);
+      ui.list.replaceChildren(outputs.length
+        ? el('div', { class: 'logic-outs' }, outputs.map((o, i) => el('span', { class: 'logic-out' }, el('span', { class: 'vn' }, o.name),
+          iconButton('x', `Remove output ${o.name}`, () => saveBlock(id, { outputs: (blockOf(id)?.outputs || []).filter((_, j) => j !== i) })))))
+        : dim('No outputs yet. Name the keys your script returns.'));
+    }
+    return [ui.top, ui.outs];
   }
 
   function consoleTab(id, result) {
@@ -478,7 +514,7 @@ export function createDetails(container, { onGo, onChange, onClose, onOpenReques
   }
 
   function saveOutputs(b, outputs) {
-    Promise.resolve(onChange({ blocks: c.flow.blocks.map(x => (x.id === b.id ? { ...x, outputs } : x)) }))
+    Promise.resolve(onBlockChange(b.id, { outputs }))
       .then(res => { if (res?.ok === false) toast(res.error ? `Could not save: ${res.error}` : 'Could not save the output'); });
     paint();
   }
@@ -665,7 +701,9 @@ export function createDetails(container, { onGo, onChange, onClose, onOpenReques
       else if (tab === 'io') content = ioTab(c.id, entry, result);
       else if (tab === 'response') content = why ? [] : responseTab(c.id, result);
       else if (entry?.request) content = tab === 'request' ? requestTab(c.id, entry, result) : headersTab(c.id, entry, result);
-      body.replaceChildren(...[why, ...content].filter(Boolean));
+      const kids = [why, ...content].filter(Boolean);
+      // Re-adding a node that is already there would blur it, so leave an unchanged column alone.
+      if (kids.length !== body.children.length || kids.some((k, i) => body.children[i] !== k)) body.replaceChildren(...kids);
     }
     painted = where;
     body.scrollTop = scroll;

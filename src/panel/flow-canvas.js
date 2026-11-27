@@ -44,8 +44,8 @@ function statusOf(entry, result) {
 }
 
 // options: { onSelect(blockId|null), onChange(patch) -> Promise<{ok}>, onRunFrom(blockId), onOpenRequest(requestId),
-//            onLogicAdded?(blockId), store?, viewKey? (where the pan/zoom is kept) }
-export function createCanvas(container, { onSelect, onChange, onRunFrom, onOpenRequest, onLogicAdded, store, viewKey }) {
+//            onBlockChange(blockId, patch) -> Promise<{ok}>, onLogicAdded?(blockId), store?, viewKey? (where the pan/zoom is kept) }
+export function createCanvas(container, { onSelect, onChange, onBlockChange, onRunFrom, onOpenRequest, onLogicAdded, store, viewKey }) {
   const grid = el('div', { class: 'grid', 'aria-hidden': 'true' });
   const edgesSvg = svgEl('svg', { class: 'edges' });
   const labels = el('div', { class: 'labels' });
@@ -359,7 +359,8 @@ export function createCanvas(container, { onSelect, onChange, onRunFrom, onOpenR
         if (x === b.x && y === b.y) { layout(); return; }
         pending.set(id, { x, y });
         paint();
-        const res = await save({ blocks: flow.blocks.map(o => (o.id === id ? { ...o, x, y } : o)) });
+        // Only the position: a whole-array save could undo an edit made to the block meanwhile.
+        const res = await Promise.resolve(onBlockChange?.(id, { x, y }));
         if (res?.ok === false) { pending.delete(id); paint(); }
       },
     });

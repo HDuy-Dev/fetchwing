@@ -226,3 +226,17 @@ test('updateFlow keeps logic blocks and unknown block fields', () => {
   ws = apply(ws, { type: 'updateFlow', id: 'f', patch: { blocks } }, 5);
   assert.deepEqual(ws.flows.f.blocks, blocks);
 });
+
+test('updateBlock merges a patch into the latest copy of one block', () => {
+  let ws = apply(emptyWorkspace(), { type: 'addFlow', id: 'f', name: 'F' });
+  const blocks = [{ id: 'l', kind: 'logic', name: 'Logic', script: 'old', x: 0, y: 0, outputs: [] }, { id: 'r', kind: 'request', requestId: 'q', x: 0, y: 0, outputs: [] }];
+  ws = apply(ws, { type: 'updateFlow', id: 'f', patch: { blocks } }, 1);
+  // Two saves sent from the same stale view: the script edit, then an outputs edit.
+  ws = apply(ws, { type: 'updateBlock', id: 'f', blockId: 'l', patch: { script: 'new' } }, 2);
+  ws = apply(ws, { type: 'updateBlock', id: 'f', blockId: 'l', patch: { outputs: [{ name: 'total' }] } }, 3);
+  assert.deepEqual(ws.flows.f.blocks[0], { ...blocks[0], script: 'new', outputs: [{ name: 'total' }] });
+  assert.deepEqual(ws.flows.f.blocks[1], blocks[1]);
+  assert.equal(ws.flows.f.updatedAt, 3);
+  assert.equal(applyMutation(ws, { type: 'updateBlock', id: 'f', blockId: 'zz', patch: { x: 1 } }, 4).error, 'not_found');
+  assert.equal(applyMutation(ws, { type: 'updateBlock', id: 'f', blockId: 'l', patch: { id: 'other' } }, 4).workspace.flows.f.blocks[0].id, 'l');
+});
