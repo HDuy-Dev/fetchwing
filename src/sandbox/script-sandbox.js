@@ -93,9 +93,50 @@ async function runScript(source, { response, vars = {}, compile = defaultCompile
   return result;
 }
 
+const FLOW_ENV_ERROR = "Flows can't change the environment. Return a value instead.";
+
+// A flow Logic block: reads variables, returns a value. The environment is read-only.
+async function runLogic(source, { vars = {}, env = {}, compile = defaultCompile } = {}) {
+  const logs = [];
+  const own = (obj, key) => Object.prototype.hasOwnProperty.call(obj, key);
+  const reader = obj => ({
+    get: key => (own(obj, key) ? obj[key] : undefined),
+    has: key => own(obj, key),
+    toObject: () => ({ ...obj }),
+  });
+  const environment = {
+    ...reader(env),
+    set() { throw new Error(FLOW_ENV_ERROR); },
+    unset() { throw new Error(FLOW_ENV_ERROR); },
+  };
+  const fw = { vars: reader(vars), environment, env: environment };
+  Object.defineProperty(fw, 'response', { get() { throw new Error('fw.response is not available in a Logic block'); } });
+
+  const log = level => (...args) => { logs.push({ level, text: args.map(formatArg).join(' ') }); };
+  const scriptConsole = { log: log('log'), info: log('info'), warn: log('warn'), error: log('error'), debug: log('log') };
+  try {
+    const value = await compile(source)(fw, fw, scriptConsole);
+    return { logs, value };
+  } catch (err) {
+    return { logs, value: undefined, error: formatArg(err) };
+  }
+}
+
 window.addEventListener('message', async event => {
   const data = event.data;
-  if (event.source !== window.parent || !data || data.source !== 'fetchwing-panel' || data.type !== 'run') return;
+  if (event.source !== window.parent || !data || data.source !== 'fetchwing-panel') return;
+  if (data.type === 'logic') {
+    const result = await runLogic(String(data.script ?? ''), { vars: data.vars ?? {}, env: data.env ?? {} });
+    const { value, ...rest } = result;
+    const reply = value === undefined ? rest : { ...rest, value };
+    try {
+      window.parent.postMessage({ source: 'fetchwing-sandbox', type: 'result', runId: data.runId, ...reply }, '*');
+    } catch {
+      window.parent.postMessage({ source: 'fetchwing-sandbox', type: 'result', runId: data.runId, logs: result.logs, error: "Output can't be sent back from the script" }, '*');
+    }
+    return;
+  }
+  if (data.type !== 'run') return;
   let result;
   try {
     result = await runScript(String(data.script ?? ''), { response: data.response, vars: data.vars ?? {} });

@@ -28,7 +28,19 @@ export function buildScriptSandbox(runtimeSource) {
 ${body}
 window.addEventListener('message', async event => {
   const data = event.data;
-  if (event.source !== window.parent || !data || data.source !== 'fetchwing-panel' || data.type !== 'run') return;
+  if (event.source !== window.parent || !data || data.source !== 'fetchwing-panel') return;
+  if (data.type === 'logic') {
+    const result = await runLogic(String(data.script ?? ''), { vars: data.vars ?? {}, env: data.env ?? {} });
+    const { value, ...rest } = result;
+    const reply = value === undefined ? rest : { ...rest, value };
+    try {
+      window.parent.postMessage({ source: 'fetchwing-sandbox', type: 'result', runId: data.runId, ...reply }, '*');
+    } catch {
+      window.parent.postMessage({ source: 'fetchwing-sandbox', type: 'result', runId: data.runId, logs: result.logs, error: "Output can't be sent back from the script" }, '*');
+    }
+    return;
+  }
+  if (data.type !== 'run') return;
   let result;
   try {
     result = await runScript(String(data.script ?? ''), { response: data.response, vars: data.vars ?? {} });

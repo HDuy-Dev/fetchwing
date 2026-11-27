@@ -17,8 +17,11 @@ export function createScriptRunner({ createFrame, timeoutMs = 5000, setTimer = s
     if (!data || data.source !== 'fetchwing-sandbox') return;
     if (data.type === 'ready') ready?.resolve();
     else if (data.type === 'result' && pending && data.runId === pending.runId) {
-      const { logs = [], changes = [], error } = data;
-      pending.resolve(error === undefined ? { logs, changes } : { logs, changes, error });
+      const { logs = [], changes = [], error, value } = data;
+      const out = pending.logic ? { logs } : { logs, changes };
+      if (pending.logic && value !== undefined) out.value = value;
+      if (error !== undefined) out.error = error;
+      pending.resolve(out);
     }
   };
 
@@ -31,37 +34,53 @@ export function createScriptRunner({ createFrame, timeoutMs = 5000, setTimer = s
     return promise;
   };
 
-  const runOne = ({ script, response, vars }) => new Promise(resolve => {
+  const CANCELLED = { logs: [], cancelled: true, error: 'Stopped' };
+  let epoch = 0; // bumped by cancel(): jobs queued before it resolve as cancelled
+
+  const teardown = () => {
+    frame?.destroy();
+    frame = null;
+    ready = null;
+  };
+
+  const runOne = job => new Promise(resolve => {
+    const logic = job.mode === 'logic';
     const runId = nextId++;
     const timer = setTimer(() => {
       pending = null;
-      frame?.destroy();
-      frame = null;
-      ready = null;
-      resolve({ logs: [], changes: [], error: TIMEOUT_ERROR });
+      teardown();
+      resolve(logic ? { logs: [], error: TIMEOUT_ERROR, timedOut: true } : { logs: [], changes: [], error: TIMEOUT_ERROR });
     }, timeoutMs);
     pending = {
       runId,
+      logic,
       resolve: result => {
         clearTimer(timer);
         pending = null;
-        frame?.destroy();
-        frame = null;
-        ready = null;
+        teardown();
         resolve(result);
       },
     };
+    const msg = logic
+      ? { source: 'fetchwing-panel', type: 'logic', runId, script: job.script, vars: job.vars, env: job.env }
+      : { source: 'fetchwing-panel', type: 'run', runId, script: job.script, response: job.response, vars: job.vars };
     ensureFrame().then(() => {
-      if (pending?.runId === runId) frame.post({ source: 'fetchwing-panel', type: 'run', runId, script, response, vars });
+      if (pending?.runId === runId) frame.post(msg);
     });
   });
 
   return {
     // Runs one script at a time, in the order asked.
     run(job) {
-      const result = queue.then(() => runOne(job));
+      const at = epoch;
+      const result = queue.then(() => (at === epoch ? runOne(job) : { ...CANCELLED }));
       queue = result.catch(() => {});
       return result;
+    },
+    // Stops the running job and drops the queued ones; later jobs run normally.
+    cancel() {
+      epoch++;
+      if (pending) pending.resolve({ ...CANCELLED });
     },
   };
 }

@@ -90,3 +90,32 @@ export async function runScript(source, { response, vars = {}, compile = default
   if (error !== undefined) result.error = error;
   return result;
 }
+
+export const FLOW_ENV_ERROR = "Flows can't change the environment. Return a value instead.";
+
+// A flow Logic block: reads variables, returns a value. The environment is read-only.
+export async function runLogic(source, { vars = {}, env = {}, compile = defaultCompile } = {}) {
+  const logs = [];
+  const own = (obj, key) => Object.prototype.hasOwnProperty.call(obj, key);
+  const reader = obj => ({
+    get: key => (own(obj, key) ? obj[key] : undefined),
+    has: key => own(obj, key),
+    toObject: () => ({ ...obj }),
+  });
+  const environment = {
+    ...reader(env),
+    set() { throw new Error(FLOW_ENV_ERROR); },
+    unset() { throw new Error(FLOW_ENV_ERROR); },
+  };
+  const fw = { vars: reader(vars), environment, env: environment };
+  Object.defineProperty(fw, 'response', { get() { throw new Error('fw.response is not available in a Logic block'); } });
+
+  const log = level => (...args) => { logs.push({ level, text: args.map(formatArg).join(' ') }); };
+  const scriptConsole = { log: log('log'), info: log('info'), warn: log('warn'), error: log('error'), debug: log('log') };
+  try {
+    const value = await compile(source)(fw, fw, scriptConsole);
+    return { logs, value };
+  } catch (err) {
+    return { logs, value: undefined, error: formatArg(err) };
+  }
+}

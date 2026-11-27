@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { runScript, formatArg } from '../src/lib/script-runtime.js';
+import { runScript, runLogic, formatArg } from '../src/lib/script-runtime.js';
 
 const response = (over = {}) => ({
   status: 200, statusText: 'OK', timeMs: 12, headers: [['Content-Type', 'application/json']], bodyText: '{"token":"abc"}', ...over,
@@ -90,4 +90,28 @@ test('formatArg basics', () => {
   assert.equal(formatArg(null), 'null');
   assert.equal(formatArg(3), '3');
   assert.equal(formatArg(10n), '10');
+});
+
+test('runLogic returns the value and keeps var types', async () => {
+  const out = await runLogic("return { t: fw.vars.get('n') * Number(fw.vars.get('s')), same: Array.isArray(pm.vars.get('arr')), has: fw.vars.has('n'), all: fw.vars.toObject() }", { vars: { n: 2, s: '3', arr: [1] } });
+  assert.deepEqual(out, { logs: [], value: { t: 6, same: true, has: true, all: { n: 2, s: '3', arr: [1] } } });
+});
+
+test('runLogic env is read-only', async () => {
+  const read = await runLogic("return { e: fw.environment.get('a'), h: fw.env.has('a'), o: fw.env.toObject() }", { env: { a: '1' } });
+  assert.deepEqual(read.value, { e: '1', h: true, o: { a: '1' } });
+  for (const call of ["fw.env.set('a', 1)", "fw.environment.unset('a')"]) {
+    const out = await runLogic(call, { env: { a: '1' } });
+    assert.match(out.error, /Flows can't change the environment\. Return a value instead\./);
+    assert.equal(out.value, undefined);
+  }
+});
+
+test('runLogic fw.response throws a clear error', async () => {
+  const out = await runLogic('return fw.response.json()', {});
+  assert.match(out.error, /fw\.response is not available in a Logic block/);
+});
+
+test('runLogic await works and logs are kept', async () => {
+  assert.deepEqual(await runLogic("console.warn('w'); return { v: await Promise.resolve(1) }", {}), { logs: [{ level: 'warn', text: 'w' }], value: { v: 1 } });
 });
