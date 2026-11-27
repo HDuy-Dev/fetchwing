@@ -1,10 +1,12 @@
 // {{name}} environment variables.
 
-const VAR = /\{\{\s*([^{}]+?)\s*\}\}/g;
+import { toText } from './flow-path.js';
+
+export const VAR_PATTERN = /\{\{\s*([^{}]+?)\s*\}\}/g;
 
 export function resolveVars(text, vars) {
   const missing = new Set();
-  const value = String(text ?? '').replace(VAR, (whole, name) => {
+  const value = String(text ?? '').replace(VAR_PATTERN, (whole, name) => {
     if (Object.prototype.hasOwnProperty.call(vars, name)) return vars[name];
     missing.add(name);
     return whole;
@@ -37,4 +39,12 @@ export function resolveRequest(request, vars) {
     fields: request.body.fields.map(f => (f.enabled ? { ...f, key: r(f.key), value: r(f.value) } : f)),
   };
   return { method: String(request.method).toUpperCase(), url, headers, body, missing: [...missing] };
+}
+
+export function withFlowVars(envVarsMap, flowVars = {}) {
+  const out = { ...envVarsMap };
+  for (const [name, value] of Object.entries(flowVars)) {
+    out[name] = typeof value === 'string' ? value : toText(value);
+  }
+  return out;
 }

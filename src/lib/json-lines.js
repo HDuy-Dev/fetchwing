@@ -2,7 +2,7 @@
 // so the panel can render line numbers and collapse { } / [ ] blocks.
 // A string holding a JSON object/array is shown as that value; its open line
 // carries `embedded`, the path to the string.
-// Line: { depth, key, kind: 'open'|'close'|'value', text, comma, block,
+// Line: { depth, key, path, kind: 'open'|'close'|'value', text, comma, block,
 //         end, size, bracket, valueType, embedded }
 
 import { parseEmbedded } from './json-text.js';
@@ -18,18 +18,18 @@ export function jsonLines(value) {
     const entries = isObj ? (Array.isArray(v) ? v.map((x, i) => [i, x]) : Object.entries(v)) : null;
     if (!isObj || entries.length === 0) {
       lines.push({
-        depth, key, kind: 'value', comma, embedded: null, block: null, end: null, size: null, bracket: null,
+        depth, key, path, kind: 'value', comma, embedded: null, block: null, end: null, size: null, bracket: null,
         text: isObj ? (Array.isArray(v) ? '[]' : '{}') : JSON.stringify(v),
         valueType: v === null ? 'null' : Array.isArray(v) ? 'array' : typeof v,
       });
       return;
     }
     const [open, close] = Array.isArray(v) ? ['[', ']'] : ['{', '}'];
-    const line = { depth, key, kind: 'open', text: open, comma: false, block: nextBlock++, end: null, size: entries.length, bracket: open, valueType: Array.isArray(v) ? 'array' : 'object', embedded: held ? path : null };
+    const line = { depth, key, path, kind: 'open', text: open, comma: false, block: nextBlock++, end: null, size: entries.length, bracket: open, valueType: Array.isArray(v) ? 'array' : 'object', embedded: held ? path : null };
     lines.push(line);
     entries.forEach(([k, child], i) => walk(child, depth + 1, Array.isArray(v) ? null : k, i < entries.length - 1, [...path, k]));
     line.end = lines.length;
-    lines.push({ depth, key: null, kind: 'close', text: close, comma, block: line.block, end: null, size: null, bracket: close, valueType: line.valueType, embedded: null });
+    lines.push({ depth, key: null, path, kind: 'close', text: close, comma, block: line.block, end: null, size: null, bracket: close, valueType: line.valueType, embedded: null });
   }
 
   walk(value, 0, null, false, []);

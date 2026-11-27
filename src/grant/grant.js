@@ -6,12 +6,14 @@ document.documentElement.dataset.mode = mode ?? (matchMedia('(prefers-color-sche
 import { completeGrant } from '../lib/grant-follow-up.js';
 
 const params = new URLSearchParams(location.search);
-const origin = params.get('origin') || '';
+// One origin from the popup and the request editor, several from a flow's Run.
+const origins = params.getAll('origin').filter(Boolean);
+const origin = origins[0] || '';
 // Set when the toolbar popup opened this window: finish its job here.
 const forSite = params.get('site') === '1';
-document.getElementById('origin').textContent = origin;
+document.getElementById('origin').textContent = origins.join(', ');
 document.getElementById('allow').addEventListener('click', async () => {
-  const granted = await chrome.permissions.request({ origins: [`${origin}/*`] });
+  const granted = await chrome.permissions.request({ origins: origins.map(o => `${o}/*`) });
   const result = document.getElementById('result');
   if (!granted) {
     result.textContent = 'Access was not granted.';

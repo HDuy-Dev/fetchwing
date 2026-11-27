@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { emptyWorkspace, newRequest, applyMutation, children, liveRequests, pathOf } from '../src/lib/model.js';
+import { emptyWorkspace, newRequest, applyMutation, children, liveRequests, pathOf, liveFlows } from '../src/lib/model.js';
 
 const apply = (ws, m, now = 100) => {
   const r = applyMutation(ws, m, now);
@@ -140,4 +140,34 @@ test('disableAllMocks turns all off and touches only those', () => {
   ws = apply(ws, { type: 'disableAllMocks' }, 9);
   assert.deepEqual(['a', 'b', 'c'].map(id => ws.items[id].mock.enabled), [false, false, false]);
   assert.deepEqual(['a', 'b', 'c'].map(id => ws.items[id].updatedAt), [9, 9, 1]);
+});
+
+test('flows: add, update, delete', () => {
+  let ws = apply(emptyWorkspace(), { type: 'addFlow', id: 'f', name: '  ' });
+  assert.equal(ws.flows.f.name, 'Untitled flow');
+  assert.deepEqual([ws.flows.f.blocks, ws.flows.f.edges], [[], []]);
+  const blocks = [{ id: 'a', kind: 'request', requestId: 'r1', x: 0, y: 0, outputs: [] },
+                  { id: 'b', kind: 'request', requestId: 'r2', x: 0, y: 0, outputs: [] }];
+  ws = apply(ws, { type: 'updateFlow', id: 'f', patch: { name: 'Checkout', blocks, edges: [{ from: 'a', to: 'b' }] } }, 200);
+  assert.equal(ws.flows.f.updatedAt, 200);
+  ws = apply(ws, { type: 'deleteFlow', id: 'f' });
+  assert.deepEqual(liveFlows(ws), []);
+});
+
+test('updateFlow rejects cycles and bad edges', () => {
+  const ws = apply(emptyWorkspace(), { type: 'addFlow', id: 'f', name: 'F' });
+  const blocks = ['a', 'b'].map(id => ({ id, kind: 'request', requestId: 'r', x: 0, y: 0, outputs: [] }));
+  const up = edges => applyMutation(ws, { type: 'updateFlow', id: 'f', patch: { blocks, edges } }, 1).error;
+  assert.equal(up([{ from: 'a', to: 'b' }, { from: 'b', to: 'a' }]), 'cycle');
+  assert.equal(up([{ from: 'a', to: 'a' }]), 'invalid_edge');
+  assert.equal(up([{ from: 'a', to: 'zz' }]), 'invalid_edge');
+  assert.equal(up([{ from: 'a', to: 'b' }, { from: 'a', to: 'b' }]), 'invalid_edge');
+});
+
+test('workspaces saved before flows still work', () => {
+  const old = emptyWorkspace(); delete old.flows;
+  assert.deepEqual(liveFlows(old), []);
+  const ws = apply(old, { type: 'addFlow', id: 'f', name: 'F' });
+  assert.ok(ws.flows.f);
+  assert.ok(apply(old, { type: 'addEnvironment', id: 'e2', name: 'X' }).flows);
 });

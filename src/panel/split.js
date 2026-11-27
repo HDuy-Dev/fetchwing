@@ -7,7 +7,8 @@ const DRAG_SLOP = 3; // pointer jitter during a click is not a drag
 
 // Pointer, double-click and arrow keys. pos names the pointer coordinate;
 // keys are the [shrink, grow] arrows; resize(size) saves, reset() clears.
-function bindHandle(handle, { pos, keys, size, resize, reset }) {
+// dir -1 is for a handle on the leading edge: moving it back grows the size.
+export function bindHandle(handle, { pos, keys, size, resize, reset, dir = 1 }) {
   let drag = null;
   const end = () => {
     drag = null;
@@ -24,7 +25,7 @@ function bindHandle(handle, { pos, keys, size, resize, reset }) {
   handle.addEventListener('pointermove', e => {
     if (!drag || (!drag.moved && Math.abs(e[pos] - drag.from) < DRAG_SLOP)) return;
     drag.moved = true;
-    resize(drag.size + e[pos] - drag.from);
+    resize(drag.size + dir * (e[pos] - drag.from));
   });
   for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) handle.addEventListener(type, end);
   handle.addEventListener('dblclick', reset);

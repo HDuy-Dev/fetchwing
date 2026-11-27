@@ -30,9 +30,9 @@ test('editor url carries the request and the web tab', () => {
 });
 
 test('editor params are read back from the url', () => {
-  assert.deepEqual(editorParams('?window=1&request=a+b%26c&tabId=7'), { isEditor: true, requestId: 'a b&c', tabId: 7 });
-  assert.deepEqual(editorParams(''), { isEditor: false, requestId: null, tabId: null });
-  assert.deepEqual(editorParams('?tabId=9'), { isEditor: false, requestId: null, tabId: 9 });
+  assert.deepEqual(editorParams('?window=1&request=a+b%26c&tabId=7'), { isEditor: true, requestId: 'a b&c', flowId: null, tabId: 7 });
+  assert.deepEqual(editorParams(''), { isEditor: false, requestId: null, flowId: null, tabId: null });
+  assert.deepEqual(editorParams('?tabId=9'), { isEditor: false, requestId: null, flowId: null, tabId: 9 });
 });
 
 test('opens a 1000x700 popup window when there is no editor window', async () => {
@@ -77,4 +77,14 @@ test('the editor window says so when it cannot tell which site a mock should run
   assert.equal(unknownSiteNotice({ isEditorWindow: true, origin: 'https://shop.test' }), null);
   assert.equal(unknownSiteNotice({ isEditorWindow: false, origin: null }), null);
   assert.equal(unknownSiteNotice({ origin: null }), null);
+});
+
+test('flow id round-trips through the editor url and is revealed', async () => {
+  const url = editorUrl(null, 7, { flowId: 'f1' });
+  assert.equal(url, 'src/panel/panel.html?window=1&flow=f1&tabId=7');
+  assert.deepEqual(editorParams(url.split('?')[1]), { isEditor: true, requestId: null, flowId: 'f1', tabId: 7 });
+  assert.equal(editorParams('window=1&request=a').flowId, null);
+  const chrome = fakeChrome({ contexts: [{ documentUrl: BASE + url, windowId: 3 }] });
+  await openEditorWindow(chrome, { flowId: 'f2', tabId: 7 });
+  assert.equal(named(chrome, 'set')[0][1].reveal.flowId, 'f2');
 });
