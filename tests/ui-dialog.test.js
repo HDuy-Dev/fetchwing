@@ -71,3 +71,15 @@ test('afterDialog waits for the open dialog to close, or runs at once', () => {
   close();
   assert.equal(ran, 2);
 });
+
+test('canClose is told when it is Escape that asks', () => {
+  const reasons = [];
+  let close;
+  openDialog((box, c) => { close = c; }, { canClose: reason => { reasons.push(reason); return false; } });
+  press('Escape');
+  backdrop.onmousedown({ target: backdrop });
+  dismissDialog();
+  openDialog(() => {});
+  assert.deepEqual(reasons, ['escape', 'request', 'request', 'request']);
+  close();
+});

@@ -84,3 +84,12 @@ test('findVar finds an unnamed variable only by its unchanged value', () => {
   assert.equal(findVar(vars, { key: '', index: 0, value: 'z' }), 2);
   assert.equal(findVar(vars, { key: '', index: 1, value: 'other' }), -1);
 });
+
+test('findVar does not move to a namesake when the name was shared at open', () => {
+  const second = { key: 'a', index: 1, value: 'two', unique: false };
+  assert.equal(findVar([{ key: 'a', value: 'one' }], second), -1);
+  const first = { key: 'a', index: 0, value: 'one', unique: false };
+  assert.equal(findVar([{ key: 'a', value: 'two' }], first), -1);
+  assert.equal(findVar([{ key: 'a', value: 'two' }, { key: 'a', value: 'one' }], first), 1);
+  assert.equal(findVar([{ key: 'x', value: '' }, { key: 'a', value: 'new' }], { key: 'a', index: 0, value: 'one', unique: true }), 1);
+});

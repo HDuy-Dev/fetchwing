@@ -90,9 +90,10 @@ export function indentAt(text, caret) {
 }
 
 // Where the edited variable is now; -1 rather than a guess that could be another one.
-// A variable with no name yet is known only by the value it had.
-export function findVar(vars, { key, index, value }) {
-  const same = v => v?.key === key && (key !== '' || v.value === value);
+// A variable with no name, or one that shared its name (`unique: false`), is known
+// only by the value it had.
+export function findVar(vars, { key, index, value, unique = true }) {
+  const same = v => v?.key === key && ((key !== '' && unique) || v.value === value);
   if (same(vars[index])) return index;
   const matches = vars.flatMap((v, i) => (same(v) ? [i] : []));
   return matches.length === 1 ? matches[0] : -1;

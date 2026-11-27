@@ -126,16 +126,16 @@ let current = null;
 let waiting = [];
 
 // False when the open dialog holds on to unsaved work; it then asks about it itself.
-const mayClose = () => !current?.canClose || current.canClose();
+const mayClose = (reason = 'request') => !current?.canClose || current.canClose(reason);
 
 export function afterDialog(fn) {
   if (current) waiting.push(fn);
   else fn();
 }
 
-// Modal dialog. build(box, close) fills it in; `close` always closes. `canClose()` is
+// Modal dialog. build(box, close) fills it in; `close` always closes. `canClose(reason)` is
 // asked on Escape, a press outside, dismissDialog() and before another dialog takes
-// its place: then null is returned and nothing is built.
+// its place ('escape' or 'request'): then null is returned and nothing is built.
 export function openDialog(build, { className = 'dialog', canClose, onClosed } = {}) {
   if (!mayClose()) return null;
   current?.close({ replaced: true });
@@ -157,7 +157,7 @@ export function openDialog(build, { className = 'dialog', canClose, onClosed } =
     if (e.isComposing || e.keyCode === 229) return;
     if (e.key !== 'Escape') return;
     e.preventDefault();
-    if (mayClose()) close();
+    if (mayClose('escape')) close();
   };
   current = record;
   backdrop.append(box);

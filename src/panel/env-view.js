@@ -134,7 +134,7 @@ export function createEnvView(container, env, { getWs, mutate, send, onDuplicate
   // The dialog saves into the latest workspace, so it works even if this tab is gone.
   async function openEditor(v) {
     const index = savableVars(vars).indexOf(v);
-    const target = { key: v.key, value: v.value, index };
+    const target = { key: v.key, value: v.value, index, unique: vars.filter(x => x.key === v.key).length === 1 };
     const { secret } = v;
     await flush();
     const latest = () => {

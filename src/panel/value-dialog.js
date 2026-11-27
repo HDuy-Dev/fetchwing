@@ -173,10 +173,10 @@ export function openValueDialog({ title, envName, value, secret, current, save, 
     box.append(heading, editor, notice, foot, ask);
   }, {
     className: 'dialog value-dialog',
-    // Escape while the question is up goes back to editing.
-    canClose: () => {
+    // Escape while the question is up goes back to editing; anything else leaves it up.
+    canClose: reason => {
       if (!dirty()) return true;
-      showAsk(!asking);
+      showAsk(reason === 'escape' ? !asking : true);
       return false;
     },
     onClosed: () => {
