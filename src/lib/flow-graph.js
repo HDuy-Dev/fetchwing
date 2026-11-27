@@ -1,6 +1,9 @@
 // Flow graph analysis: which variables each block uses and where they come from.
 
 import { VAR_PATTERN } from './vars.js';
+import { scanVars, logicFingerprint } from './logic-block.js';
+
+export const isLogic = block => block?.kind === 'logic';
 
 export function usedVars(request) {
   const texts = [request.url];
@@ -62,26 +65,43 @@ function requestOf(ws, block) {
   return item && item.type === 'request' && !item.deleted ? item : null;
 }
 
+// The nearest providers among `providers` (blocks): drop any provider upstream of another provider.
+function nearestOf(flow, providers) {
+  return providers.filter(p => !providers.some(q => q !== p && upstream(flow, q.id).has(p.id)));
+}
+
+// Every output name declared upstream of a block, mapped to its nearest provider (null on a conflict).
+export function visibleProviders(flow, blockId) {
+  const ups = upstream(flow, blockId);
+  const upBlocks = flow.blocks.filter(b => ups.has(b.id));
+  const names = [...new Set(upBlocks.flatMap(b => (b.outputs || []).map(o => o.name)))].sort();
+  const out = new Map();
+  for (const name of names) {
+    const nearest = nearestOf(flow, upBlocks.filter(b => (b.outputs || []).some(o => o.name === name)));
+    out.set(name, nearest.length === 1 ? nearest[0].id : null);
+  }
+  return out;
+}
+
 export function analyzeFlow(ws, flow, envVars) {
   const info = new Map();
   const has = (obj, k) => Object.prototype.hasOwnProperty.call(obj || {}, k);
   for (const block of flow.blocks) {
-    const request = requestOf(ws, block);
-    const entry = { request, uses: [], missing: [], conflicts: [], deleted: !request };
+    const logic = isLogic(block);
+    const request = logic ? null : requestOf(ws, block);
+    const entry = { logic, request, uses: [], missing: [], conflicts: [], deleted: !logic && !request };
     info.set(block.id, entry);
-    if (!request) continue;
-    const ups = upstream(flow, block.id);
-    const upBlocks = flow.blocks.filter(b => ups.has(b.id));
-    for (const name of usedVars(request)) {
-      const providers = upBlocks.filter(b => (b.outputs || []).some(o => o.name === name));
-      // The nearest provider wins: drop any provider that is upstream of another provider.
-      const nearest = providers.filter(p => !providers.some(q => q !== p && upstream(flow, q.id).has(p.id)));
-      if (nearest.length === 1) entry.uses.push({ name, from: nearest[0].id });
-      else if (nearest.length > 1) {
-        entry.uses.push({ name, from: null });
-        entry.conflicts.push(name);
+    if (!logic && !request) continue;
+    const providers = visibleProviders(flow, block.id);
+    const scan = logic ? scanVars(block.script) : { required: usedVars(request), optional: [] };
+    const optional = new Set(scan.optional);
+    for (const name of [...scan.required, ...scan.optional].sort()) {
+      if (providers.has(name)) {
+        const from = providers.get(name);
+        entry.uses.push({ name, from });
+        if (from === null && !optional.has(name)) entry.conflicts.push(name);
       } else if (has(envVars, name)) entry.uses.push({ name, from: 'env' });
-      else {
+      else if (!optional.has(name)) {
         entry.uses.push({ name, from: null });
         entry.missing.push(name);
       }
@@ -93,9 +113,16 @@ export function analyzeFlow(ws, flow, envVars) {
 export function edgeVars(ws, flow, edge) {
   const from = flow.blocks.find(b => b.id === edge.from);
   const to = flow.blocks.find(b => b.id === edge.to);
-  const request = to && requestOf(ws, to);
-  if (!from || !request) return [];
-  const used = new Set(usedVars(request));
+  if (!from || !to) return [];
+  let used;
+  if (isLogic(to)) {
+    const scan = scanVars(to.script);
+    used = new Set([...scan.required, ...scan.optional]);
+  } else {
+    const request = requestOf(ws, to);
+    if (!request) return [];
+    used = new Set(usedVars(request));
+  }
   return [...new Set((from.outputs || []).map(o => o.name))].filter(n => used.has(n));
 }
 
@@ -114,4 +141,11 @@ export function blockFingerprint(request, envVars) {
     mock,
     env,
   });
+}
+
+// A block's fingerprint, whatever its kind; null for a block whose request is gone.
+export function fingerprintOf(ws, block, envVars) {
+  if (isLogic(block)) return logicFingerprint(block, envVars);
+  const request = requestOf(ws, block);
+  return request ? blockFingerprint(request, envVars) : null;
 }

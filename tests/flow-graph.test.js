@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { newRequest } from '../src/lib/model.js';
-import { usedVars, upstream, topoOrder, analyzeFlow, edgeVars, blockFingerprint } from '../src/lib/flow-graph.js';
+import { usedVars, upstream, topoOrder, analyzeFlow, edgeVars, blockFingerprint, fingerprintOf, isLogic, visibleProviders } from '../src/lib/flow-graph.js';
 
 const req = (id, fields) => ({ id, type: 'request', parentId: null, order: 0, name: id, updatedAt: 0, deleted: false, ...newRequest(fields) });
 const block = (id, requestId, outputs = []) => ({ id, kind: 'request', requestId, x: 0, y: 0, outputs });
@@ -74,4 +74,60 @@ test('blockFingerprint ignores name and position, tracks url, mock and env', () 
   assert.notEqual(blockFingerprint({ ...base, mock: { ...base.mock, enabled: true } }, { base: 'h', token: 't' }), fp);
   assert.notEqual(blockFingerprint(base, { base: 'h2', token: 't' }), fp);
   assert.equal(blockFingerprint(base, { base: 'h', token: 't', unused: 'z' }), fp);
+});
+
+const logic = (id, script, outputs = []) => ({ id, kind: 'logic', name: 'Logic', script, x: 0, y: 0, outputs: outputs.map(name => ({ name })) });
+
+test('analyzeFlow marks a logic block missing only for required names', () => {
+  const flow = { blocks: [logic('L', "fw.vars.get('a'); fw.vars.has('b')")], edges: [] };
+  const e = analyzeFlow(ws(), flow, {}).get('L');
+  assert.equal(e.logic, true);
+  assert.equal(e.deleted, false);
+  assert.equal(e.request, null);
+  assert.deepEqual(e.missing, ['a']);
+  assert.deepEqual(e.uses, [{ name: 'a', from: null }]);
+  assert.equal(isLogic(flow.blocks[0]), true);
+  assert.equal(isLogic(block('x', 'a')), false);
+});
+
+test('analyzeFlow resolves logic inputs from upstream outputs and env', () => {
+  const flow = { blocks: [block('A', 'a', [{ name: 'a', path: 'body.a' }]), logic('L', "fw.vars.get('a') + fw.vars.get('b')")], edges: [{ from: 'A', to: 'L' }] };
+  const e = analyzeFlow(ws(), flow, { b: '1' }).get('L');
+  assert.deepEqual(e.uses, [{ name: 'a', from: 'A' }, { name: 'b', from: 'env' }]);
+  assert.deepEqual(e.missing, []);
+  assert.equal(analyzeFlow(ws(), flow, { b: '1' }).get('A').logic, false);
+});
+
+test('logic outputs feed downstream request vars', () => {
+  const flow = { blocks: [logic('L', 'return { id: 1 }', ['id']), block('C', 'c')], edges: [{ from: 'L', to: 'C' }] };
+  assert.deepEqual(analyzeFlow(ws(), flow, {}).get('C').uses, [{ name: 'id', from: 'L' }]);
+  assert.deepEqual(edgeVars(ws(), flow, flow.edges[0]), ['id']);
+});
+
+test('edgeVars into a logic block lists scanned names', () => {
+  const flow = { blocks: [block('A', 'a', [{ name: 'p', path: 'body.p' }, { name: 'q', path: 'body.q' }, { name: 'z', path: 'body.z' }]), logic('L', "fw.vars.get('p'); fw.vars.has('q')")], edges: [{ from: 'A', to: 'L' }] };
+  assert.deepEqual(edgeVars(ws(), flow, flow.edges[0]), ['p', 'q']);
+});
+
+test('blocks without kind still analyse as requests', () => {
+  const plain = { id: 'C', requestId: 'c', x: 0, y: 0, outputs: [] };
+  const e = analyzeFlow(ws(), { blocks: [plain], edges: [] }, {}).get('C');
+  assert.equal(e.logic, false);
+  assert.equal(e.request.id, 'c');
+  assert.deepEqual(e.missing, ['id']);
+});
+
+test('fingerprintOf handles both kinds', () => {
+  const w = ws();
+  assert.equal(fingerprintOf(w, block('X', 'gone'), {}), null);
+  assert.equal(fingerprintOf(w, block('C', 'c'), {}), blockFingerprint(w.items.c, {}));
+  const L = logic('L', 'return {}');
+  assert.notEqual(fingerprintOf(w, L, {}), fingerprintOf(w, { ...L, script: 'return { }' }, {}));
+});
+
+test('visibleProviders picks the nearest provider and nulls conflicts', () => {
+  const chain = { blocks: [block('A', 'a', [{ name: 'x', path: 'body.x' }]), block('B', 'b', [{ name: 'x', path: 'body.x' }]), logic('L', '')], edges: [{ from: 'A', to: 'B' }, { from: 'B', to: 'L' }] };
+  assert.deepEqual([...visibleProviders(chain, 'L')], [['x', 'B']]);
+  const par = { blocks: [block('A', 'a', [{ name: 'y', path: 'body.y' }]), block('B', 'b', [{ name: 'y', path: 'body.y' }]), logic('L', '')], edges: [{ from: 'A', to: 'L' }, { from: 'B', to: 'L' }] };
+  assert.deepEqual([...visibleProviders(par, 'L')], [['y', null]]);
 });
