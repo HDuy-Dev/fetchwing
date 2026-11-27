@@ -20,13 +20,15 @@ Mockup: `mockup/env-value.html`.
 - Giá trị khác: vẫn sửa trong ô như cũ.
 - Biến còn sửa trong ô có thêm nút "Open in editor", hiện khi hover hoặc focus vào dòng (luôn hiện với `hover: none`). Dòng tóm tắt không cần nút này, chỗ của nó để trống để các cột thẳng hàng. Dòng trống không có.
 - Dán chữ nhiều dòng vào ô Value (kể cả ở dòng trống): giữ nguyên xuống dòng, ô chuyển thành nút tóm tắt, focus ở nút đó.
+  - Hoàn tác: ⌘Z / Ctrl+Z khi focus còn ở nút đó đưa ô nhập về giá trị trước khi dán; dán ở dòng trống thì bỏ dòng vừa tạo, focus ở ô Value của dòng trống. Chuyển focus đi chỗ khác trong panel, hoặc bảng được vẽ lại, thì hết hoàn tác được (chuyển sang cửa sổ khác rồi quay lại thì vẫn được). Giá trị cũ chỉ nằm trong bộ nhớ. Không thêm giao diện.
+  - Đã cân nhắc: (A) ⌘Z trên nút, đã chọn vì đúng thói quen và không thêm giao diện, đổi lại khó phát hiện; (B) thêm dòng "Undo" nhìn thấy được, dùng được bằng chuột nhưng thêm giao diện và trạng thái; (C) giữ nguyên, mất giá trị cũ.
 
 ## Hộp thoại
 - Tiêu đề: tên biến và tên env. Cao khoảng 80% panel, vùng soạn chiếm phần còn lại. DevTools thấp (dưới khoảng 440px): hộp thoại gần kín panel, bỏ khoảng trống phía trên và dòng gợi ý phím. Vùng soạn không có chiều cao tối thiểu cứng (style `.dialog textarea` hiện đặt 160px, phải ghi đè).
 - Bàn phím: mở ra thì focus vào ô soạn, con trỏ ở đầu (`openDialog` hiện focus phần tử đầu tiên, tức là nút tab). Tab không ra ngoài hộp thoại. Tab trong ô soạn vẫn chuyển focus (không bẫy bàn phím); Enter giữ thụt lề của dòng trước. Đang gõ dở bằng bộ gõ (IME) thì Esc/Enter không đóng, không lưu.
 - Trình đọc màn hình: hộp thoại được đặt tên theo tiêu đề; hai tab báo trạng thái đang chọn.
 - **Edit:** ô chữ nhiều dòng, font mono, không tô màu (mockup có tô màu chỉ để minh hoạ).
-- **Tree:** chỉ xem, gập/mở bằng trình xem JSON sẵn có. Chỉ bật khi nội dung là JSON object/array. Tree đọc giá trị đã parse nên số quá lớn bị làm tròn: khi có số như vậy, hiện "Large numbers are rounded here. Edit shows the exact text."
+- **Tree:** chỉ xem, gập/mở bằng trình xem JSON sẵn có. Chỉ bật khi nội dung là JSON object/array không rỗng. Tree đọc giá trị đã parse nên số quá lớn bị làm tròn: khi có số như vậy, hiện "Large numbers are rounded here. Edit shows the exact text."
 - Nội dung bắt đầu bằng `{` hoặc `[`: hiện "✓ Valid JSON" hoặc "✕ Invalid JSON" (không chỉ khác màu). Chi tiết lỗi, kèm dòng và cột khi tính được, nằm ngay dưới ô soạn, cập nhật sau khi ngừng gõ. Lỗi chỉ để báo, vẫn lưu được.
 - **Format:** chỉ bật khi JSON hợp lệ; giữ nguyên cách viết số và chuỗi (`formatJson`).
 - JSON viết một dòng được tự format khi mở. Không sửa gì thì giá trị giữ nguyên. Nếu sửa và vẫn hợp lệ thì lưu lại dạng một dòng, để dùng trong URL/header không bị vỡ. Giá trị vốn nhiều dòng hoặc không hợp lệ thì lưu đúng như đang thấy.
