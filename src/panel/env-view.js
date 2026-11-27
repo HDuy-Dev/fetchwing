@@ -1,6 +1,8 @@
 // One environment, shown in its own tab: name, actions and the variable table.
 
-import { hintName, envPatch, sameEnv } from '../lib/env-form.js';
+import { hintName, envPatch, sameEnv, savableVars } from '../lib/env-form.js';
+import { isLargeValue, valueSummary, pastedValue, findVar } from '../lib/env-value.js';
+import { openValueDialog } from './value-dialog.js';
 import { el, icon, iconButton, debounce } from './ui.js';
 
 // opts: { getWs, mutate, send, onDuplicate(id), onPendingChange() }
@@ -67,17 +69,44 @@ export function createEnvView(container, env, { getWs, mutate, send, onDuplicate
         isBlank = false;
         vars.push(v);
         keyInput.placeholder = 'Variable';
-        actions.append(lock, remove);
+        actions.replaceChildren(openBtn, lock, remove);
         rows.append(varRow({ key: '', value: '', secret: false }, true));
       }
+      drawOpen();
       drawHint();
       changed();
     };
     const keyInput = el('input', { type: 'text', value: v.key, placeholder: isBlank ? 'Add variable…' : 'Variable', 'aria-label': 'Variable name', spellcheck: 'false', oninput: e => edit('key', e.target.value) });
-    const valueInput = el('input', { type: v.secret ? 'password' : 'text', value: v.value, placeholder: 'Value', 'aria-label': 'Value', spellcheck: 'false', oninput: e => edit('value', e.target.value) });
+    // A large value shows as a summary that opens the editor. The choice is made when
+    // the row is drawn or pasted into, never while the user is typing.
+    const isChip = isLargeValue(v.value);
+    const valueCell = isChip
+      ? el('button', { type: 'button', class: 'env-chip', onclick: () => openEditor(v) })
+      : el('input', { type: v.secret ? 'password' : 'text', value: v.value, placeholder: 'Value', 'aria-label': 'Value', spellcheck: 'false', oninput: e => edit('value', e.target.value), onpaste: paste });
+    const drawChip = () => {
+      const { kind, size, preview } = valueSummary(v.value, v.secret);
+      valueCell.setAttribute('aria-label', `Edit value of ${v.key || 'unnamed variable'}`);
+      valueCell.replaceChildren(el('b', {}, kind), el('span', {}, size), el('i', {}, preview));
+    };
+    // A chip opens the editor itself, so its row only keeps the button's place.
+    const openBtn = isChip
+      ? el('span', { class: 'env-gap', 'aria-hidden': 'true' })
+      : iconButton('maximize', 'Open in editor', () => openEditor(v), { class: 'ibtn env-hover env-open' });
+    const drawOpen = () => {
+      if (isChip) drawChip();
+      else openBtn.classList.toggle('env-off', !v.key && !v.value);
+    };
+    function paste(e) {
+      const next = pastedValue(valueCell.value, valueCell.selectionStart, valueCell.selectionEnd, e.clipboardData.getData('text/plain'));
+      if (next === null) return;
+      e.preventDefault();
+      edit('value', next);
+      redrawRow(row, v).querySelector('.env-chip')?.focus();
+    }
     const lock = iconButton(v.secret ? 'lock' : 'unlock', 'Secret: stays on this device, never synced', () => {
       v.secret = !v.secret;
-      valueInput.type = v.secret ? 'password' : 'text';
+      if (isChip) drawChip();
+      else valueCell.type = v.secret ? 'password' : 'text';
       lock.setAttribute('aria-pressed', String(v.secret));
       lock.replaceChildren(icon(v.secret ? 'lock' : 'unlock'));
       changed();
@@ -90,9 +119,66 @@ export function createEnvView(container, env, { getWs, mutate, send, onDuplicate
       drawHint();
       changed();
     });
-    const actions = el('div', { class: 'env-row-actions' }, isBlank ? null : [lock, remove]);
-    const row = el('div', { class: 'env-row' }, keyInput, valueInput, actions);
+    const actions = el('div', { class: 'env-row-actions' }, isBlank ? null : [openBtn, lock, remove]);
+    const row = el('div', { class: 'env-row' }, keyInput, valueCell, actions);
+    drawOpen();
     return row;
+  }
+
+  function redrawRow(row, v) {
+    const next = varRow(v, false);
+    row.replaceWith(next);
+    return next;
+  }
+
+  // The dialog saves into the latest workspace, so it works even if this tab is gone.
+  async function openEditor(v) {
+    const index = savableVars(vars).indexOf(v);
+    const target = { key: v.key, value: v.value, index, unique: vars.filter(x => x.key === v.key).length === 1 };
+    const { secret } = v;
+    await flush();
+    const latest = () => {
+      const env = current();
+      const at = env ? findVar(env.vars, target) : -1;
+      return at < 0 ? null : { env, at };
+    };
+    openValueDialog({
+      title: target.key,
+      envName: current()?.name ?? savedName,
+      value: target.value,
+      secret,
+      current: () => {
+        const found = latest();
+        return found ? found.env.vars[found.at].value : null;
+      },
+      save: async text => {
+        const found = latest();
+        if (!found) return false;
+        if (found.env.vars[found.at].value === text) return true;
+        const next = found.env.vars.map((x, i) => (i === found.at ? { ...x, value: text } : x));
+        inFlight++;
+        const sent = mutate({ type: 'updateEnvironment', id: envId, patch: { vars: next } });
+        saving = sent.finally(() => {
+          inFlight--;
+          onPendingChange();
+        });
+        onPendingChange();
+        const res = await sent;
+        if (res?.ok) showSaved(target, text);
+        return Boolean(res?.ok);
+      },
+      // Back to the row it was opened from, if it is still on screen.
+      onClosed: () => rows.children[index]?.querySelector('.env-chip, .env-open')?.focus(),
+    });
+  }
+
+  // Puts the dialog's value into its row now, so the redraw that follows the save
+  // finds nothing new and leaves the focus alone.
+  function showSaved(target, text) {
+    const at = findVar(vars, target);
+    if (at < 0 || !rows.children[at]) return;
+    vars[at].value = text;
+    redrawRow(rows.children[at], vars[at]);
   }
 
   // Fills the name and the table from a saved environment.
@@ -175,7 +261,7 @@ export function createEnvView(container, env, { getWs, mutate, send, onDuplicate
       rows.insertBefore(row, rows.lastElementChild);
       drawHint();
       changed();
-      row.querySelectorAll('input')[1].focus();
+      row.querySelectorAll('input')[1]?.focus();
     },
     focusName() {
       nameInput.focus();

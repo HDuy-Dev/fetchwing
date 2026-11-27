@@ -320,7 +320,7 @@ table.kv tr.blank input[type="text"]:focus { border-style: solid; border-color: 
 .env-view .err { color: var(--err); font-size: 12px; }
 .env-view .err:empty { display: none; }
 .env-rows { display: flex; flex-direction: column; }
-.env-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr) 58px; align-items: center; gap: 4px; min-height: 36px; border-bottom: 1px solid var(--divider); flex-shrink: 0; }
+.env-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr) 88px; align-items: center; gap: 4px; min-height: 36px; border-bottom: 1px solid var(--divider); flex-shrink: 0; }
 .env-columns { min-height: 26px; margin-top: 4px; margin-bottom: -8px; color: var(--faint); font-size: 12px; }
 .env-columns > span { padding: 0 6px; }
 .env-rows + .env-hint { margin: 0; }
@@ -329,6 +329,44 @@ table.kv tr.blank input[type="text"]:focus { border-style: solid; border-color: 
 .env-view .env-row input:focus { border-color: var(--accent-line); background: var(--bg); }
 .env-row input::placeholder { color: var(--faint); }
 .env-row-actions { display: flex; justify-content: flex-end; gap: 2px; }
+.env-row:hover .env-hover, .env-row:focus-within .env-hover { opacity: 1; }
+.env-open.env-off { visibility: hidden; }
+.env-gap { width: 28px; flex-shrink: 0; }
+.env-chip { display: flex; align-items: center; gap: 8px; width: 100%; min-width: 0; height: 28px; padding: 0 6px; border: 1px solid var(--control); border-radius: var(--r-sm); background: var(--surface-2); font: 12.5px var(--mono); text-align: left; white-space: nowrap; overflow: hidden; }
+.env-chip:hover { background: var(--hover); }
+.env-chip b { color: var(--accent); flex-shrink: 0; }
+.env-chip span { flex-shrink: 0; }
+.env-chip i { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-style: normal; color: var(--faint); }
+
+/* ---------- value dialog ---------- */
+.dialog.value-dialog { width: min(760px, 94vw); height: 80vh; overflow: hidden; }
+.value-dialog h2 { overflow-wrap: anywhere; }
+.value-dialog h2 small { color: var(--faint); font-weight: 400; }
+.value-dialog .editor { min-height: 0; }
+.value-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; flex-shrink: 0; padding: 4px 6px; border-bottom: 1px solid var(--divider); }
+.value-grow { flex: 1; }
+.value-tab { padding: 3px 10px; border: 0; border-radius: var(--r-md); background: transparent; color: var(--muted); }
+.value-tab[aria-pressed="true"] { background: var(--select); color: var(--text); }
+.value-tab:disabled { opacity: .5; cursor: default; }
+.value-status { color: var(--ok); font-size: 12px; }
+.value-status.bad { color: var(--err); }
+.dialog textarea.value-text { flex: 1; min-height: 0; padding: 8px 12px; border: 0; border-radius: 0; background: transparent; resize: none; font: 12.5px/1.6 var(--mono); }
+.dialog textarea.value-text:focus-visible { outline-offset: -2px; }
+.value-tree { flex: 1; min-height: 0; overflow: auto; padding-top: 4px; }
+.value-masked { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 12px; text-align: center; color: var(--muted); }
+.value-message, .value-note { flex-shrink: 0; max-height: 40%; overflow: auto; padding: 6px 12px; border-top: 1px solid var(--divider); font-size: 12px; color: var(--err); overflow-wrap: anywhere; }
+.value-note { border-top: 0; border-bottom: 1px solid var(--divider); color: var(--warn); }
+.value-message:empty, .value-notice:empty { display: none; }
+.value-notice { color: var(--err); font-size: 12px; }
+.value-dialog .actions { flex-wrap: wrap; align-items: center; }
+.value-keys { margin-right: auto; }
+.value-ask { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 8px 6px 12px; border: 1px solid var(--err); border-radius: var(--r-lg); background: var(--err-soft); }
+.value-ask-buttons { display: flex; gap: 8px; margin-left: auto; }
+@media (max-height: 440px) {
+  .dialog-backdrop:has(> .value-dialog) { padding-top: 4px; }
+  .dialog.value-dialog { height: calc(100vh - 8px); max-height: none; padding: 8px; gap: 6px; }
+  .value-keys { display: none; }
+}
 .otab > svg.i { width: 14px; height: 14px; }
 
 .search-box { display: flex; flex-direction: column; gap: 4px; padding: 8px; width: min(560px, 92vw); }

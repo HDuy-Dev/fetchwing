@@ -33,6 +33,7 @@ const ICONS = {
   cloud: '<path d="M17.5 19H7a5 5 0 1 1 1.2-9.86A6 6 0 0 1 19.5 11 4 4 0 0 1 17.5 19z"/>',
   cloudOff: '<path d="M3 3l18 18"/><path d="M8.2 9.14A5 5 0 0 0 7 19h10.5M20.9 16.5A4 4 0 0 0 19.5 11a6 6 0 0 0-8.9-5.2"/>',
   flow: '<rect x="3" y="4" width="7" height="6" rx="1.5"/><rect x="14" y="14" width="7" height="6" rx="1.5"/><path d="M10 7h5.5a2 2 0 0 1 2 2v5"/>',
+  maximize: '<path d="M14 4h6v6M20 4l-7 7M10 20H4v-6M4 20l7-7"/>',
   popout: '<path d="M14 4h6v6"/><path d="M20 4l-8 8"/><path d="M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4"/>',
   play: '<path d="M7 5v14l11-7z"/>',
   stop: '<rect x="6" y="6" width="12" height="12" rx="1.5"/>',
@@ -120,20 +121,48 @@ export function showMenu(x, y, items) {
   return close;
 }
 
-// Modal dialog. build(box, close) fills it in.
-export function openDialog(build, { className = 'dialog' } = {}) {
+// The one open dialog, and what is waiting for it to close.
+let current = null;
+let waiting = [];
+
+// False when the open dialog holds on to unsaved work; it then asks about it itself.
+const mayClose = (reason = 'request') => !current?.canClose || current.canClose(reason);
+
+export function afterDialog(fn) {
+  if (current) waiting.push(fn);
+  else fn();
+}
+
+// Modal dialog. build(box, close) fills it in; `close` always closes. `canClose(reason)` is
+// asked on Escape, a press outside, dismissDialog() and before another dialog takes
+// its place ('escape' or 'request'): then null is returned and nothing is built.
+export function openDialog(build, { className = 'dialog', canClose, onClosed } = {}) {
+  if (!mayClose()) return null;
+  current?.close({ replaced: true });
   const backdrop = document.getElementById('dialog');
   backdrop.textContent = '';
   const box = el('div', { class: className, role: 'dialog', 'aria-modal': 'true' });
-  const close = () => {
+  const record = { canClose };
+  record.close = ({ replaced = false } = {}) => {
+    if (current !== record) return;
+    current = null;
     backdrop.hidden = true;
     backdrop.textContent = '';
     document.removeEventListener('keydown', onKey, true);
+    onClosed?.();
+    if (!replaced) waiting.splice(0).forEach(fn => fn());
   };
-  const onKey = e => { if (e.key === 'Escape') { e.preventDefault(); close(); } };
+  const close = () => record.close();
+  const onKey = e => {
+    if (e.isComposing || e.keyCode === 229) return;
+    if (e.key !== 'Escape') return;
+    e.preventDefault();
+    if (mayClose('escape')) close();
+  };
+  current = record;
   backdrop.append(box);
   backdrop.hidden = false;
-  backdrop.onmousedown = e => { if (e.target === backdrop) close(); };
+  backdrop.onmousedown = e => { if (e.target === backdrop && mayClose()) close(); };
   document.addEventListener('keydown', onKey, true);
   build(box, close);
   box.querySelector('input, textarea, button')?.focus();

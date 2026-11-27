@@ -21,7 +21,7 @@ import { editorParams } from '../lib/editor-window.js';
 import { renderFlowList } from './flow-list.js';
 import { mountFlowView } from './flow-view.js';
 import { ensureOrigin } from './permissions.js';
-import { el, icon, iconButton, toast, showMenu, openDialog, dismissDialog } from './ui.js';
+import { el, icon, iconButton, toast, showMenu, openDialog, dismissDialog, afterDialog } from './ui.js';
 
 const $ = id => document.getElementById(id);
 import { send } from './runtime.js';
@@ -615,8 +615,9 @@ function driveHelpDialog() {
   });
 }
 
-function confirmAccountDialog({ email, previousEmail }) {
-  openDialog((box, close) => {
+function confirmAccountDialog(account) {
+  const { email, previousEmail } = account;
+  const opened = openDialog((box, close) => {
     const answer = choice => { close(); syncCall({ type: 'syncConfirm', choice }); };
     box.append(
       el('h2', {}, `Sync with ${email}?`),
@@ -627,6 +628,8 @@ function confirmAccountDialog({ email, previousEmail }) {
         el('button', { type: 'button', class: 'btn-primary', onclick: () => answer('merge') }, "Merge this device's data")),
     );
   });
+  // A dialog with unsaved work is open: ask once it is gone.
+  if (!opened) afterDialog(() => confirmAccountDialog(account));
 }
 
 $('syncBtn').addEventListener('click', e => {
