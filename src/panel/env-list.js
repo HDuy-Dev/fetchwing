@@ -28,7 +28,7 @@ export function renderEnvList(container, ws, viewedId, handlers) {
       onkeydown: e => { if (e.key === 'Enter' && e.target === e.currentTarget) handlers.onOpen(env.id); },
       oncontextmenu: e => { e.preventDefault(); menuFor(env, e.clientX, e.clientY); },
     },
-    icon('braces'),
+    icon('layers'),
     el('span', { class: 'name' }, env.name),
     inRow('dots', 'More actions', e => {
       const r = e.currentTarget.getBoundingClientRect();
