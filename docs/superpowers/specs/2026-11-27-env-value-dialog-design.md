@@ -26,7 +26,7 @@ Mockup: `mockup/env-value.html`.
 - Bàn phím: mở ra thì focus vào ô soạn, con trỏ ở đầu (`openDialog` hiện focus phần tử đầu tiên, tức là nút tab). Tab không ra ngoài hộp thoại. Tab trong ô soạn vẫn chuyển focus (không bẫy bàn phím); Enter giữ thụt lề của dòng trước. Đang gõ dở bằng bộ gõ (IME) thì Esc/Enter không đóng, không lưu.
 - Trình đọc màn hình: hộp thoại được đặt tên theo tiêu đề; hai tab báo trạng thái đang chọn.
 - **Edit:** ô chữ nhiều dòng, font mono, không tô màu (mockup có tô màu chỉ để minh hoạ).
-- **Tree:** chỉ xem, gập/mở bằng trình xem JSON sẵn có. Chỉ bật khi nội dung là JSON object/array. Tree đọc giá trị đã parse nên số quá lớn bị làm tròn: khi có số như vậy, hiện "Large numbers are rounded here. Edit shows the exact text."
+- **Tree:** chỉ xem, gập/mở bằng trình xem JSON sẵn có. Chỉ bật khi nội dung là JSON object/array không rỗng. Tree đọc giá trị đã parse nên số quá lớn bị làm tròn: khi có số như vậy, hiện "Large numbers are rounded here. Edit shows the exact text."
 - Nội dung bắt đầu bằng `{` hoặc `[`: hiện "✓ Valid JSON" hoặc "✕ Invalid JSON" (không chỉ khác màu). Chi tiết lỗi, kèm dòng và cột khi tính được, nằm ngay dưới ô soạn, cập nhật sau khi ngừng gõ. Lỗi chỉ để báo, vẫn lưu được.
 - **Format:** chỉ bật khi JSON hợp lệ; giữ nguyên cách viết số và chuỗi (`formatJson`).
 - JSON viết một dòng được tự format khi mở. Không sửa gì thì giá trị giữ nguyên. Nếu sửa và vẫn hợp lệ thì lưu lại dạng một dòng, để dùng trong URL/header không bị vỡ. Giá trị vốn nhiều dòng hoặc không hợp lệ thì lưu đúng như đang thấy.

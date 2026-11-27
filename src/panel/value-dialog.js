@@ -1,8 +1,8 @@
 // The large editor for one environment variable's value.
 
 import { jsonState, openText, savedText, hasUnsafeNumber, indentAt, saveCheck } from '../lib/env-value.js';
-import { formatJson } from '../lib/json-text.js';
-import { renderJsonView, parseJson } from './json-view.js';
+import { formatJson, parseEmbedded } from '../lib/json-text.js';
+import { renderJsonView } from './json-view.js';
 import { el, openDialog, debounce } from './ui.js';
 
 const MAC = /Mac/.test(globalThis.navigator?.platform ?? '');
@@ -50,13 +50,13 @@ export function openValueDialog({ title, envName, value, secret, current, save, 
     status.textContent = !state ? '' : state.valid ? '✓ Valid JSON' : '✕ Invalid JSON';
     jsonMessage.textContent = state && !state.valid ? `${state.message.replace(/\.?$/, '.')} You can still save.` : '';
     formatBtn.disabled = !state?.valid || area.hidden;
-    treeTab.disabled = hidden || !parseJson(area.value);
+    treeTab.disabled = hidden || !parseEmbedded(area.value);
   }
   const redrawStatus = debounce(drawStatus, 300);
 
   function showTree(on) {
     redrawStatus.cancel();
-    const parsed = on ? parseJson(area.value) : null;
+    const parsed = on ? parseEmbedded(area.value) : null;
     const asTree = Boolean(parsed);
     area.hidden = asTree;
     tree.hidden = !asTree;
