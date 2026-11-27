@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { isLargeValue, valueSummary, pastedValue, jsonState, openText, savedText, hasUnsafeNumber, indentAt, findVar, rowOf, saveCheck } from '../src/lib/env-value.js';
+import { isLargeValue, valueSummary, pastedValue, jsonState, openText, savedText, hasUnsafeNumber, indentAt, findVar, rowOf, saveCheck, isUndoKey } from '../src/lib/env-value.js';
 
 test('isLargeValue: line breaks or a non-empty JSON object/array', () => {
   for (const s of ['a\nb', '{"a":1}', ' [1]']) assert.equal(isLargeValue(s), true, s);
@@ -138,5 +138,14 @@ test('jsonState keeps its message short and copies none of the text', () => {
 test('jsonState places the error after a pasted [object Object]', () => {
   for (const text of ['[object Object]', `[object Object]${' '.repeat(200)}]`]) {
     assert.deepEqual(jsonState(text), { valid: false, message: 'Line 1, column 2: Unexpected character' });
+  }
+});
+
+test('isUndoKey: Cmd+Z or Ctrl+Z, not redo and not a plain z', () => {
+  assert.equal(isUndoKey({ key: 'z', metaKey: true }), true);
+  assert.equal(isUndoKey({ key: 'z', ctrlKey: true }), true);
+  assert.equal(isUndoKey({ key: 'Z', ctrlKey: true }), true, 'caps lock');
+  for (const e of [{ key: 'z' }, { key: 'z', metaKey: true, shiftKey: true }, { key: 'z', ctrlKey: true, altKey: true }, { key: 'y', ctrlKey: true }]) {
+    assert.equal(isUndoKey(e), false, JSON.stringify(e));
   }
 });

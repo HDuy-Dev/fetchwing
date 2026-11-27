@@ -1,7 +1,7 @@
 // One environment, shown in its own tab: name, actions and the variable table.
 
 import { hintName, envPatch, sameEnv, savableVars } from '../lib/env-form.js';
-import { isLargeValue, valueSummary, pastedValue, findVar, rowOf } from '../lib/env-value.js';
+import { isLargeValue, valueSummary, pastedValue, findVar, rowOf, isUndoKey } from '../lib/env-value.js';
 import { openValueDialog } from './value-dialog.js';
 import { el, icon, iconButton, debounce } from './ui.js';
 
@@ -100,8 +100,25 @@ export function createEnvView(container, env, { getWs, mutate, send, onDuplicate
       const next = pastedValue(valueCell.value, valueCell.selectionStart, valueCell.selectionEnd, e.clipboardData.getData('text/plain'));
       if (next === null) return;
       e.preventDefault();
+      const before = valueCell.value;
+      const wasBlank = isBlank;
       edit('value', next);
-      redrawRow(row, v).querySelector('.env-chip')?.focus();
+      const pasted = redrawRow(row, v);
+      offerUndo(pasted, () => {
+        if (wasBlank) {
+          // The paste made this variable; the blank row that followed it takes over.
+          vars.splice(vars.indexOf(v), 1);
+          pasted.remove();
+          drawHint();
+          changed();
+          rows.lastElementChild.querySelectorAll('input')[1].focus();
+          return;
+        }
+        // This row's input still holds the old value and the selection.
+        pasted.replaceWith(row);
+        edit('value', before);
+        valueCell.focus();
+      });
     }
     const lock = iconButton(v.secret ? 'lock' : 'unlock', 'Secret: stays on this device, never synced', () => {
       v.secret = !v.secret;
@@ -123,6 +140,25 @@ export function createEnvView(container, env, { getWs, mutate, send, onDuplicate
     const row = el('div', { class: 'env-row' }, keyInput, valueCell, actions);
     drawOpen();
     return row;
+  }
+
+  // The browser can't undo a paste that swapped the input for a summary, so the
+  // summary does, for as long as the focus stays on it.
+  function offerUndo(row, undo) {
+    const chip = row.querySelector('.env-chip');
+    const onKey = e => {
+      if (!isUndoKey(e)) return;
+      e.preventDefault(); // or the browser undoes in some other field
+      undo();
+    };
+    const onBlur = () => {
+      if (document.activeElement === chip) return; // only the window lost focus
+      chip.removeEventListener('keydown', onKey);
+      chip.removeEventListener('blur', onBlur);
+    };
+    chip.addEventListener('keydown', onKey);
+    chip.addEventListener('blur', onBlur);
+    chip.focus();
   }
 
   function redrawRow(row, v) {

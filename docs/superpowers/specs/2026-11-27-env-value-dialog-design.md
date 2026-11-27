@@ -20,6 +20,8 @@ Mockup: `mockup/env-value.html`.
 - Giá trị khác: vẫn sửa trong ô như cũ.
 - Biến còn sửa trong ô có thêm nút "Open in editor", hiện khi hover hoặc focus vào dòng (luôn hiện với `hover: none`). Dòng tóm tắt không cần nút này, chỗ của nó để trống để các cột thẳng hàng. Dòng trống không có.
 - Dán chữ nhiều dòng vào ô Value (kể cả ở dòng trống): giữ nguyên xuống dòng, ô chuyển thành nút tóm tắt, focus ở nút đó.
+  - Hoàn tác: ⌘Z / Ctrl+Z khi focus còn ở nút đó đưa ô nhập về giá trị trước khi dán; dán ở dòng trống thì bỏ dòng vừa tạo, focus ở ô Value của dòng trống. Chuyển focus đi chỗ khác trong panel, hoặc bảng được vẽ lại, thì hết hoàn tác được (chuyển sang cửa sổ khác rồi quay lại thì vẫn được). Giá trị cũ chỉ nằm trong bộ nhớ. Không thêm giao diện.
+  - Đã cân nhắc: (A) ⌘Z trên nút, đã chọn vì đúng thói quen và không thêm giao diện, đổi lại khó phát hiện; (B) thêm dòng "Undo" nhìn thấy được, dùng được bằng chuột nhưng thêm giao diện và trạng thái; (C) giữ nguyên, mất giá trị cũ.
 
 ## Hộp thoại
 - Tiêu đề: tên biến và tên env. Cao khoảng 80% panel, vùng soạn chiếm phần còn lại. DevTools thấp (dưới khoảng 440px): hộp thoại gần kín panel, bỏ khoảng trống phía trên và dòng gợi ý phím. Vùng soạn không có chiều cao tối thiểu cứng (style `.dialog textarea` hiện đặt 160px, phải ghi đè).

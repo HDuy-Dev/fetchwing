@@ -36,6 +36,8 @@ export function pastedValue(current, start, end, pasted) {
   return current.slice(0, start) + pasted.replace(/\r\n?/g, '\n') + current.slice(end);
 }
 
+export const isUndoKey = e => Boolean(e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'z';
+
 // How the engine words an unexpected character: it quotes the text and gives no position.
 const unexpected = /is not valid JSON$/;
 
