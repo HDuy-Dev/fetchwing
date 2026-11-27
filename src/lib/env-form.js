@@ -12,3 +12,11 @@ export function envPatch(name, vars) {
   if (name.trim()) patch.name = name;
   return patch;
 }
+
+// Whether the editor already shows what is saved. A blank name is never saved, so it is skipped.
+export function sameEnv(name, vars, env) {
+  const patch = envPatch(name, vars);
+  if (patch.name !== undefined && patch.name.trim() !== env.name) return false;
+  const flat = list => JSON.stringify(list.map(v => [v.key, v.value, Boolean(v.secret)]));
+  return flat(patch.vars) === flat(env.vars);
+}
