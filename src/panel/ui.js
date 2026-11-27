@@ -33,6 +33,7 @@ const ICONS = {
   cloud: '<path d="M17.5 19H7a5 5 0 1 1 1.2-9.86A6 6 0 0 1 19.5 11 4 4 0 0 1 17.5 19z"/>',
   cloudOff: '<path d="M3 3l18 18"/><path d="M8.2 9.14A5 5 0 0 0 7 19h10.5M20.9 16.5A4 4 0 0 0 19.5 11a6 6 0 0 0-8.9-5.2"/>',
   flow: '<rect x="3" y="4" width="7" height="6" rx="1.5"/><rect x="14" y="14" width="7" height="6" rx="1.5"/><path d="M10 7h5.5a2 2 0 0 1 2 2v5"/>',
+  maximize: '<path d="M14 4h6v6M20 4l-7 7M10 20H4v-6M4 20l7-7"/>',
   popout: '<path d="M14 4h6v6"/><path d="M20 4l-8 8"/><path d="M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4"/>',
   play: '<path d="M7 5v14l11-7z"/>',
   stop: '<rect x="6" y="6" width="12" height="12" rx="1.5"/>',
