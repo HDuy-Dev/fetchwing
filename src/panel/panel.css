@@ -210,6 +210,7 @@ table.kv tr.blank input[type="text"]:focus { border-style: solid; border-color: 
 .btn.btn-small { height: 26px; padding: 0 10px; font-size: 12px; }
 .code-area { width: 100%; min-height: 120px; border: 1px solid var(--control); border-radius: var(--r-lg); background: var(--bg); padding: 8px 12px; font: 12.5px/1.6 var(--mono); resize: vertical; outline: none; }
 .code-area:focus { border-color: var(--accent-line); }
+.script-area { min-height: 160px; tab-size: 2; }
 .hint { color: var(--muted); font-size: 12px; }
 
 /* ---------- response / mock ---------- */
