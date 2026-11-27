@@ -120,7 +120,7 @@ $('logoMark').append(icon('logo'));
 $('searchBox').append(icon('search'), el('span', {}, 'Search requests'), el('span', { class: 'ml-auto mono', style: 'font-size:11px' }, navigator.platform.includes('Mac') ? '⌘K' : 'Ctrl K'));
 $('settingsBtn').append(icon('gear'));
 $('drawerToggle').append(icon('menu'));
-const RAIL = { collections: ['folder', 'Collections'], environments: ['braces', 'Environments'], mocks: ['mock', 'Mocks'], flows: ['flow', 'Flows'] };
+const RAIL = { collections: ['folder', 'Collections'], environments: ['layers', 'Environments'], mocks: ['mock', 'Mocks'], flows: ['flow', 'Flows'] };
 document.querySelectorAll('.rail [data-section]').forEach(btn => {
   btn.append(icon(RAIL[btn.dataset.section][0]));
   btn.addEventListener('click', () => {

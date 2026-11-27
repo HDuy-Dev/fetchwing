@@ -111,7 +111,7 @@ export function initEnvPicker(button, { getWs, onPick, onCreate }) {
     render() {
       const env = getWs().environments[getWs().activeEnvId];
       const name = env && !env.deleted ? env.name : 'No Environment';
-      button.replaceChildren(icon('braces'), el('span', { class: 'name' }, name), icon('chevron'));
+      button.replaceChildren(icon('layers'), el('span', { class: 'name' }, name), icon('chevron'));
       button.setAttribute('aria-label', `Environment: ${name}`);
       button.title = `Environment: ${name}`;
       if (!popup.hidden) draw(keyOf(rows[at]));

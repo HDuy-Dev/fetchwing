@@ -17,7 +17,7 @@ export function renderTabs(container, ws, openIds, activeId, handlers) {
       onauxclick: e => { if (e.button === 1) { e.preventDefault(); handlers.onClose(id); } },
       onkeydown: e => { if (e.key === 'Enter') handlers.onActivate(id); },
     },
-    kind === 'env' ? icon('braces') : el('span', { class: `m ${item.method}` }, item.method),
+    kind === 'env' ? icon('layers') : el('span', { class: `m ${item.method}` }, item.method),
     el('span', { class: 'name' }, item.name),
     item.mock?.enabled ? el('span', { class: 'mdot', title: 'Mock on', 'aria-label': 'Mock on' }) : null,
     handlers.isPending(id) ? el('span', { class: 'unsaved', title: 'Saving…', 'aria-label': 'Saving' }) : null,
