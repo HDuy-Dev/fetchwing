@@ -13,6 +13,9 @@
     "128": "assets/icons/icon-128.png"
   },
   "devtools_page": "src/devtools.html",
+  "sandbox": {
+    "pages": ["src/sandbox/script.html"]
+  },
   "background": {
     "service_worker": "src/background.js",
     "type": "module"
