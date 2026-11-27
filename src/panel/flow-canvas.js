@@ -1,7 +1,8 @@
 // The flow canvas: blocks and edges on a pannable, zoomable world, with editing.
 
 import { FAR_ZOOM, GRID, zoomAt, fitView, snap, midEllipsis, edgeLabel } from '../lib/flow-view.js';
-import { edgeVars, blockFingerprint, upstream } from '../lib/flow-graph.js';
+import { edgeVars, fingerprintOf, isLogic, upstream } from '../lib/flow-graph.js';
+import { newLogicBlock } from '../lib/logic-block.js';
 import { blockStatus, runFromHere, envChanged } from '../lib/flow-record.js';
 import { envVars } from '../lib/vars.js';
 import { newId } from '../lib/model.js';
@@ -29,7 +30,9 @@ function statusOf(entry, result) {
     const cls = CLASS[result.state] ?? 'idle';
     const ms = result.endMs != null && result.startMs != null ? `${Math.round(result.endMs - result.startMs)} ms` : '';
     let text = TEXT[result.state] ?? result.state;
-    if (result.state === 'ok' || result.state === 'failed') {
+    if (result.logic && (result.state === 'ok' || result.state === 'failed')) {
+      text = result.state === 'ok' ? ms || 'Done' : result.error || 'Failed';
+    } else if (result.state === 'ok' || result.state === 'failed') {
       text = result.response ? [result.response.status, ms].filter(Boolean).join(' · ') : result.error || 'Failed';
     }
     return { cls, text, fromRun: true };
@@ -41,8 +44,8 @@ function statusOf(entry, result) {
 }
 
 // options: { onSelect(blockId|null), onChange(patch) -> Promise<{ok}>, onRunFrom(blockId), onOpenRequest(requestId),
-//            store?, viewKey? (where the pan/zoom is kept) }
-export function createCanvas(container, { onSelect, onChange, onRunFrom, onOpenRequest, store, viewKey }) {
+//            onLogicAdded?(blockId), store?, viewKey? (where the pan/zoom is kept) }
+export function createCanvas(container, { onSelect, onChange, onRunFrom, onOpenRequest, onLogicAdded, store, viewKey }) {
   const grid = el('div', { class: 'grid', 'aria-hidden': 'true' });
   const edgesSvg = svgEl('svg', { class: 'edges' });
   const labels = el('div', { class: 'labels' });
@@ -108,24 +111,33 @@ export function createCanvas(container, { onSelect, onChange, onRunFrom, onOpenR
   }
 
   // ---------- drawing ----------
+  // The block's current fingerprint, or null when it can't run (its request is gone).
+  const currentFingerprint = b => fingerprintOf(ws, b, envVars(ws));
+
   function paintNode(node, b) {
+    const logic = isLogic(b);
     const entry = analysis.get(b.id);
     const request = entry?.request;
     const gone = ws?.items?.[b.requestId];
-    const name = request?.name ?? gone?.name ?? 'Deleted request';
-    const method = request?.method ?? '';
+    const name = logic ? b.name || 'Logic' : request?.name ?? gone?.name ?? 'Deleted request';
+    const method = logic ? 'JS' : request?.method ?? '';
     const result = run?.blocks?.[b.id];
     const st = statusOf(entry, result);
-    const outdated = Boolean(request && result && (result.state === 'ok' || result.state === 'failed')
-      && blockStatus(run, b.id, blockFingerprint(request, envVars(ws))).outdated);
+    const fp = (logic || request) && result && (result.state === 'ok' || result.state === 'failed') ? currentFingerprint(b) : null;
+    const outdated = fp !== null && blockStatus(run, b.id, fp).outdated;
     const flags = [];
     if (st.fromRun) {
       if (entry?.deleted) flags.push(['bad', 'Request deleted']);
       for (const n of entry?.missing ?? []) flags.push(['warn', `! Missing ${n}`]);
       for (const n of entry?.conflicts ?? []) flags.push(['warn', `! Conflict ${n}`]);
     }
-    const mocked = result?.state === 'ok' || result?.state === 'failed' ? Boolean(result.mock) : Boolean(request?.mock?.enabled);
-    node.className = `node n-${st.cls}${b.id === selectedId ? ' sel' : ''}${mocked ? ' mocked' : ''}${drag?.id === b.id ? ' dragging' : ''}`;
+    const mocked = !logic && (result?.state === 'ok' || result?.state === 'failed' ? Boolean(result.mock) : Boolean(request?.mock?.enabled));
+    const outNames = (b.outputs || []).map(o => o.name);
+    const middle = logic
+      ? el('div', { class: 'u', title: outNames.join(', ') }, outNames.length ? midEllipsis(`→ ${outNames.join(', ')}`, 30) : 'No outputs')
+      : request ? el('div', { class: 'u', title: request.url }, midEllipsis(request.url, 30)) : null;
+    const changedWhat = logic ? 'The script changed after this run' : 'The request changed after this run';
+    node.className = `node n-${st.cls}${logic ? ' logic' : ''}${b.id === selectedId ? ' sel' : ''}${mocked ? ' mocked' : ''}${drag?.id === b.id ? ' dragging' : ''}`;
     node.setAttribute('aria-label', `${method} ${name}: ${st.text}`.trim());
     node.replaceChildren(...[
       el('span', { class: 'port in', 'aria-hidden': 'true' }),
@@ -134,11 +146,11 @@ export function createCanvas(container, { onSelect, onChange, onRunFrom, onOpenR
         method ? el('span', { class: `m ${method}` }, method) : null,
         el('span', { class: 'nm', title: name }, name),
         mocked ? el('span', { class: 'badge', title: 'Answered by the mock' }, 'MOCK') : null),
-      request ? el('div', { class: 'u', title: request.url }, midEllipsis(request.url, 30)) : null,
+      middle,
       el('div', { class: `st s-${st.cls}` },
         el('span', { class: 'ico', 'aria-hidden': 'true' }, ICON[st.cls]),
         el('span', { class: 'txt', title: st.text }, st.text),
-        outdated ? el('span', { class: 'stale', title: 'The request changed after this run' }, 'outdated') : null),
+        outdated ? el('span', { class: 'stale', title: changedWhat }, 'outdated') : null),
       flags.length ? el('div', { class: 'flags' }, flags.map(([c, t]) => el('span', { class: `flag ${c}` }, t))) : null,
     ].filter(Boolean));
   }
@@ -227,18 +239,39 @@ export function createCanvas(container, { onSelect, onChange, onRunFrom, onOpenR
     root.focus({ preventScroll: true });
   }
 
-  function addBlockAt(requestId, x, y) {
-    if (!flow) return;
+  // Puts a new block at (x, y) on the grid, nudged off any block already there, and selects it.
+  function placeBlock(make, x, y) {
+    if (!flow) return Promise.resolve(null);
     const taken = p => flow.blocks.some(b => b.x === p.x && b.y === p.y);
     const p = { x: snap(x), y: snap(y) };
     while (taken(p)) { p.x += GRID * 2; p.y += GRID * 2; }
-    const block = { id: newId(), kind: 'request', requestId, x: p.x, y: p.y, outputs: [] };
-    save({ blocks: [...flow.blocks, block] }).then(res => { if (res?.ok !== false) onSelect?.(block.id); });
+    const block = make(p);
+    return save({ blocks: [...flow.blocks, block] }).then(res => {
+      if (res?.ok === false) return null;
+      onSelect?.(block.id);
+      return block.id;
+    });
   }
 
-  function addRequest(requestId) {
+  function addBlockAt(requestId, x, y) {
+    placeBlock(p => ({ id: newId(), kind: 'request', requestId, x: p.x, y: p.y, outputs: [] }), x, y);
+  }
+
+  const centerWorld = () => {
     const [cx, cy] = centerPoint();
-    addBlockAt(requestId, (cx - view.x) / view.k - W / 2, (cy - view.y) / view.k - PORT_Y);
+    return [(cx - view.x) / view.k - W / 2, (cy - view.y) / view.k - PORT_Y];
+  };
+
+  function addRequest(requestId) {
+    addBlockAt(requestId, ...centerWorld());
+  }
+
+  function addLogic() {
+    placeBlock(p => newLogicBlock({ id: newId(), x: p.x, y: p.y }), ...centerWorld()).then(id => { if (id) onLogicAdded?.(id); });
+  }
+
+  function duplicateBlock(b) {
+    placeBlock(p => ({ ...structuredClone(b), id: newId(), x: p.x, y: p.y }), b.x + GRID * 2, b.y + GRID * 2);
   }
 
   function removeBlock(id) {
@@ -268,14 +301,15 @@ export function createCanvas(container, { onSelect, onChange, onRunFrom, onOpenR
   function menuFor(b, x, y) {
     const entry = analysis.get(b.id);
     const outdatedIds = flow.blocks.filter(o => {
-      const r = analysis.get(o.id)?.request;
-      return r && blockStatus(run, o.id, blockFingerprint(r, envVars(ws))).outdated;
+      const fp = currentFingerprint(o);
+      return fp !== null && blockStatus(run, o.id, fp).outdated;
     }).map(o => o.id);
     const changed = envChanged(run, ws.activeEnvId, envVars(ws));
     const from = runFromHere(run, flow, b.id, { envChanged: changed, outdatedIds });
     const items = [{ label: 'Run from here', icon: 'play', disabled: !from.enabled || !onRunFrom, action: () => onRunFrom(b.id) }];
     if (from.enabled && from.warn) items.push({ label: from.warn, disabled: true, className: 'menu-note', action: () => {} });
-    items.push({ label: 'Open request', icon: 'edit', disabled: !entry?.request || !onOpenRequest, action: () => onOpenRequest(b.requestId) });
+    if (isLogic(b)) items.push({ label: 'Duplicate', icon: 'copy', action: () => duplicateBlock(b) });
+    else items.push({ label: 'Open request', icon: 'edit', disabled: !entry?.request || !onOpenRequest, action: () => onOpenRequest(b.requestId) });
     items.push('sep', { label: 'Delete', icon: 'trash', danger: true, action: () => removeBlock(b.id) });
     showMenu(x, y, items);
   }
@@ -469,6 +503,7 @@ export function createCanvas(container, { onSelect, onChange, onRunFrom, onOpenR
     center,
     fit,
     addRequest,
+    addLogic,
     destroy() {
       stopTracking?.(true);
       resize.disconnect();

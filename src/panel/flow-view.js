@@ -9,7 +9,7 @@ import { createRunner, flowOrigins } from './flow-runner.js';
 import { createScriptRunner, iframeFrame } from './script-runner.js';
 import { ensureOrigins } from './permissions.js';
 import { openSearch } from './search.js';
-import { el, icon, iconButton, toast } from './ui.js';
+import { el, icon, iconButton, toast, showMenu } from './ui.js';
 
 const liveFlow = (ws, id) => {
   const flow = ws?.flows?.[id];
@@ -27,7 +27,15 @@ export function mountFlowView(container, { flowId, getWs, mutate, send, store, i
     const res = await send({ type: 'openEditorWindow', flowId, tabId: getTabId?.() ?? null });
     if (!res?.ok) toast(res?.error ?? 'Could not open the window.');
   };
-  const addBlock = () => openSearch(getWs(), requestId => canvas.addRequest(requestId));
+  const addRequestBlock = () => openSearch(getWs(), requestId => canvas.addRequest(requestId));
+  // ＋ Block: a request from a collection, or a Logic block.
+  const addBlock = e => {
+    const r = e.currentTarget.getBoundingClientRect();
+    showMenu(r.left, r.bottom + 4, [
+      { label: 'Request…', icon: 'search', action: addRequestBlock },
+      { label: 'Logic', icon: 'terminal', action: () => canvas.addLogic() },
+    ]);
+  };
   const runBtn = el('button', { type: 'button', class: 'btn-primary flow-run', disabled: true, onclick: () => runOrStop() });
   const summary = el('span', { class: 'flow-summary', 'aria-live': 'polite' });
   const toolbar = el('div', { class: 'flow-toolbar' },
@@ -39,7 +47,7 @@ export function mountFlowView(container, { flowId, getWs, mutate, send, store, i
   const empty = el('div', { class: 'flow-empty', hidden: true },
     icon('flow', 'big'),
     el('p', { class: 'flow-empty-title' }, 'This flow is empty'),
-    el('p', {}, 'Add a request from a collection with ＋ Block.'),
+    el('p', {}, 'Add a request from a collection, or a Logic block, with ＋ Block.'),
     el('button', { type: 'button', class: 'btn-primary', onclick: addBlock }, icon('plus'), 'Add first block'));
   const body = el('div', { class: 'flow-body' });
   const split = el('div', { class: 'flow-split' }, body);
@@ -93,6 +101,7 @@ export function mountFlowView(container, { flowId, getWs, mutate, send, store, i
     onChange: patch => mutate({ type: 'updateFlow', id: flowId, patch }),
     onRunFrom: blockId => runOrStop(blockId),
     onOpenRequest,
+    onLogicAdded: () => details.openTab?.('script'),
     store,
     viewKey: `flowView.${flowId}.${isWindow ? 'window' : 'panel'}`,
   });

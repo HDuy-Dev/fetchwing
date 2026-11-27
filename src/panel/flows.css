@@ -65,6 +65,8 @@
 .canvas .node.n-running { border-color: var(--accent); }
 .canvas .node .t { display: flex; align-items: flex-start; gap: 6px; font-weight: 600; font-size: 12.5px; }
 .canvas .node .t .m { width: auto; margin-top: 2px; }
+/* Logic blocks: a JS badge in place of the method. */
+.m.JS { color: var(--muted); border: 1px solid var(--divider); border-radius: var(--r-sm); padding: 1px 4px; font-size: 10px; }
 .canvas .node .t .nm { min-width: 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; line-height: 1.3; }
 .canvas .node .badge { margin: 2px 0 0 auto; font: 800 9.5px var(--mono); letter-spacing: .05em; padding: 1px 5px; border-radius: var(--r-sm); background: var(--mock-soft); color: var(--mock); border: 1px solid var(--mock); }
 .canvas .node .u { font: 10px var(--mono); letter-spacing: -.02em; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 2px 0 6px; }
