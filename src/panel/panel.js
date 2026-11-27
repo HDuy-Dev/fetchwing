@@ -601,7 +601,7 @@ async function syncCall(msg) {
 }
 
 function driveHelpDialog() {
-  openDialog((box, close) => {
+  const opened = openDialog((box, close) => {
     box.setAttribute('role', 'alertdialog');
     box.append(
       el('h2', {}, 'Google Drive access is needed to sync'),
@@ -613,6 +613,8 @@ function driveHelpDialog() {
         el('button', { type: 'button', class: 'btn-primary', onclick: () => { close(); syncCall({ type: 'syncSignIn', forceConsent: true }); } }, 'Try again')),
     );
   });
+  // A dialog with unsaved work is open: explain once it is gone.
+  if (!opened) afterDialog(driveHelpDialog);
 }
 
 function confirmAccountDialog(account) {
