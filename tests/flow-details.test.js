@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { outputHighlights, newOutputFor, outputError, envView } from '../src/panel/flow-details.js';
+import { outputHighlights, newOutputFor, outputError, envView, outputNameError, logicConsole, LOGIC_TABS } from '../src/panel/flow-details.js';
 import { pathKey } from '../src/panel/json-view.js';
 
 test('outputHighlights maps each body path an output reads to its name', () => {
@@ -65,4 +65,31 @@ test('envView masks every run-time value when the run’s environment is gone', 
   assert.equal(envView({ activeEnvId: null, environments: {} }, run, true).secret('base'), true);
   const deleted = { environments: { prod: { id: 'prod', deleted: true, vars: [{ key: 'base', value: 'b', secret: false }] } } };
   assert.equal(envView(deleted, run, true).secret('base'), true);
+});
+
+test('outputNameError keeps the output name rules', () => {
+  const outs = [{ name: 'a' }, { name: 'b' }];
+  assert.equal(outputNameError('  ', outs, -1), 'Name is required');
+  assert.equal(outputNameError('x{y', outs, -1), 'Name can’t contain { or }');
+  assert.equal(outputNameError('a', outs, -1), 'An output named a already exists');
+  assert.equal(outputNameError('a', outs, 0), null);
+  assert.equal(outputNameError(' c ', outs, -1), null);
+});
+
+test('LOGIC_TABS', () => {
+  assert.deepEqual(LOGIC_TABS, [['script', 'Script'], ['io', 'Inputs / Outputs'], ['console', 'Console']]);
+});
+
+test('logicConsole orders logs, warnings, error, then the returned value', () => {
+  assert.deepEqual(logicConsole(undefined), []);
+  assert.deepEqual(logicConsole({ state: 'failed', logs: [{ level: 'log', text: 'a' }], warnings: ['w'], error: 'Error: x' }),
+    [{ level: 'log', text: 'a' }, { level: 'warn', text: 'w' }, { level: 'error', text: 'Error: x' }]);
+  assert.deepEqual(logicConsole({ state: 'ok', logs: [], warnings: [], value: { total: 6 } }), [{ level: 'info', text: 'Returned: {"total":6}' }]);
+  assert.deepEqual(logicConsole({ state: 'ok', logs: [], warnings: [] }), []);
+});
+
+test('logicConsole cuts long texts at 256 KB', () => {
+  const [row] = logicConsole({ state: 'failed', logs: [{ level: 'log', text: 'x'.repeat(300_000) }], warnings: [] });
+  assert.ok(row.text.endsWith('… (truncated)'));
+  assert.equal(row.text.length, 256_000 + '… (truncated)'.length);
 });

@@ -1,7 +1,8 @@
 // The details column of a flow: the selected block's inputs and outputs, response,
 // request and headers, or an overview of the last run when no block is selected.
 
-import { blockFingerprint, upstream } from '../lib/flow-graph.js';
+import { fingerprintOf, isLogic, upstream } from '../lib/flow-graph.js';
+import { detectOutputs } from '../lib/logic-block.js';
 import { blockStatus } from '../lib/flow-record.js';
 import { parsePath, pathFor, toText } from '../lib/flow-path.js';
 import { midEllipsis, isSensitiveName, isSensitiveHeader } from '../lib/flow-view.js';
@@ -13,6 +14,10 @@ import { bindHandle } from './split.js';
 import { el, icon, iconButton, toast } from './ui.js';
 
 const TABS = [['io', 'Inputs / Outputs'], ['response', 'Response'], ['request', 'Request'], ['headers', 'Headers']];
+export const LOGIC_TABS = [['script', 'Script'], ['io', 'Inputs / Outputs'], ['console', 'Console']];
+const SCRIPT_HINT = "fw.vars.get('x') · return { name: value } · console.log() · env values are text: use Number(...)";
+const MAX_CONSOLE_TEXT = 256_000;
+const SAVE_DELAY = 400;
 const ICON = { idle: '', queued: '', running: '', ok: '✓', bad: '✕', skip: '⊘', warn: '!' };
 const CLASS = { ok: 'ok', failed: 'bad', skipped: 'skip', missing: 'warn', running: 'running', queued: 'queued' };
 const TEXT = { idle: 'Not run', queued: 'Queued', running: 'Running…', skipped: 'Skipped', missing: 'Missing variable' };
@@ -61,12 +66,35 @@ export function newOutputFor(path, outputs) {
   return { name, path: pathFor(path) };
 }
 
-// Why an output can't be saved, or null. `index` is the row being edited (-1 for a new one).
-export function outputError(name, path, outputs, index) {
+// Why an output name can't be saved, or null. `index` is the row being edited (-1 for a new one).
+export function outputNameError(name, outputs, index) {
   const n = name.trim();
   if (!n) return 'Name is required';
   if (/[{}]/.test(n)) return 'Name can’t contain { or }';
   if (outputs.some((o, i) => i !== index && o.name === n)) return `An output named ${n} already exists`;
+  return null;
+}
+
+const cut = text => (text.length > MAX_CONSOLE_TEXT ? `${text.slice(0, MAX_CONSOLE_TEXT)}… (truncated)` : text);
+
+// The Console tab of a logic block: logs, warnings, the error, then what the script returned.
+export function logicConsole(result) {
+  if (!result) return [];
+  const rows = (result.logs || []).map(({ level, text }) => ({ level, text: cut(String(text)) }));
+  for (const w of result.warnings || []) rows.push({ level: 'warn', text: cut(w) });
+  if (result.error !== undefined && result.state === 'failed') rows.push({ level: 'error', text: cut(String(result.error)) });
+  if (result.state === 'ok' && result.value !== undefined) {
+    let json;
+    try { json = JSON.stringify(result.value); } catch { json = String(result.value); }
+    rows.push({ level: 'info', text: cut(`Returned: ${json}`) });
+  }
+  return rows;
+}
+
+// Why an output can't be saved, or null. `index` is the row being edited (-1 for a new one).
+export function outputError(name, path, outputs, index) {
+  const nameError = outputNameError(name, outputs, index);
+  if (nameError) return nameError;
   const parsed = parsePath(path);
   return parsed.ok ? null : parsed.error;
 }
@@ -93,8 +121,15 @@ export function createDetails(container, { onGo, onChange, onClose, onOpenReques
   const root = el('aside', { class: 'flow-details', 'aria-label': 'Details' }, grip, head, tabsEl, body);
   container.append(root);
 
-  let tab = store?.get('flowTab', 'io');
-  if (!TABS.some(([id]) => id === tab)) tab = 'io';
+  // The open tab is kept per kind of block: request blocks and logic blocks have different tabs.
+  const pick = (saved, list, fallback) => (list.some(([id]) => id === saved) ? saved : fallback);
+  const tabs = {
+    request: pick(store?.get('flowTab', 'io'), TABS, 'io'),
+    logic: pick(store?.get('flowLogicTab', 'script'), LOGIC_TABS, 'script'),
+  };
+  let tab = tabs.request;
+  let draft = null; // { id, text }: script typed but not saved yet
+  let saveTimer = null;
   let c = null; // the last render's { ws, flow, run, analysis, id }
   let sig = null, shownBlock, painted = '';
   let q = '', raw = false, max = false, editing = null; // editing: { index, name, path, error }
@@ -121,6 +156,7 @@ export function createDetails(container, { onGo, onChange, onClose, onOpenReques
   const blockOf = id => c.flow.blocks.find(b => b.id === id);
   const nameOf = id => {
     const b = blockOf(id);
+    if (isLogic(b)) return b.name || 'Logic';
     return c.analysis.get(id)?.request?.name ?? c.ws.items?.[b?.requestId]?.name ?? 'Deleted request';
   };
   const link = id => el('button', { type: 'button', class: 'nlink', title: nameOf(id), onclick: e => { e.stopPropagation(); onGo(id); } }, nameOf(id));
@@ -135,8 +171,10 @@ export function createDetails(container, { onGo, onChange, onClose, onOpenReques
   } }, '⧉');
   const status = (cls, text) => el('span', { class: `st s-${cls}` }, el('span', { class: 'ico', 'aria-hidden': 'true' }, ICON[cls] ?? ''), text);
   const outdatedOf = id => {
-    const request = c.analysis.get(id)?.request;
-    return Boolean(request && done(c.run?.blocks?.[id]) && blockStatus(c.run, id, blockFingerprint(request, envVars(c.ws))).outdated);
+    const b = blockOf(id);
+    if (!b || !done(c.run?.blocks?.[id])) return false;
+    const fp = fingerprintOf(c.ws, b, envVars(c.ws));
+    return fp !== null && blockStatus(c.run, id, fp).outdated;
   };
 
   // A value: masked until ◉ when secret, cut in the middle when long (click shows all), copy on hover.
@@ -230,7 +268,7 @@ export function createDetails(container, { onGo, onChange, onClose, onOpenReques
       const waiting = parents.filter(p => c.run?.blocks?.[p]?.state !== 'ok');
       return banner('skip', 'Waiting for earlier blocks to finish', ...(waiting.length ? [': ', ...links(waiting), '.'] : ['.']));
     }
-    if (state === 'running') return banner('skip', result.mock ? 'Waiting for the mock…' : 'Sending request…');
+    if (state === 'running') return banner('skip', entry?.logic ? 'Running script…' : result.mock ? 'Waiting for the mock…' : 'Sending request…');
     if (state === 'idle') return banner('skip', c.run && c.run.status !== 'running' && c.run.status !== 'done' ? 'Not run: the run stopped before this block.' : 'Not run yet. Press Run to run the flow.');
     return null;
   }
@@ -246,7 +284,8 @@ export function createDetails(container, { onGo, onChange, onClose, onOpenReques
     const cls = entry?.deleted && !done(result) ? 'bad' : CLASS[state] ?? 'idle';
     const r = result?.response;
     let text = TEXT[state] ?? state;
-    if (done(result)) text = r ? `${r.status} ${r.statusText || ''}`.trim() : result.error || 'Failed';
+    if (done(result) && entry?.logic) text = state === 'ok' ? 'Done' : result.error || 'Failed';
+    else if (done(result)) text = r ? `${r.status} ${r.statusText || ''}`.trim() : result.error || 'Failed';
     else if (entry?.deleted) text = 'Request deleted';
     else if (state === 'idle' && (entry?.missing.length || entry?.conflicts.length)) text = TEXT.missing;
     const ran = result?.endMs != null && result?.startMs != null ? result.endMs - result.startMs : null;
@@ -258,31 +297,115 @@ export function createDetails(container, { onGo, onChange, onClose, onOpenReques
     ].filter(Boolean).flatMap((p, i) => (i ? [el('span', { class: 'sep', 'aria-hidden': 'true' }, '·'), p] : [p]));
     const name = nameOf(id);
     const mocked = done(result) ? result.mock : request?.mock?.enabled;
+    const logic = Boolean(entry?.logic);
     head.replaceChildren(
       el('div', { class: 'dt-top' },
-        request ? el('span', { class: `m ${request.method}` }, request.method) : null,
-        el('h3', { class: 'dt-name', title: name }, name),
+        logic ? el('span', { class: 'm JS' }, 'JS') : request ? el('span', { class: `m ${request.method}` }, request.method) : null,
+        logic ? nameInput(id) : el('h3', { class: 'dt-name', title: name }, name),
         mocked ? el('span', { class: 'badge', title: 'Answered by the mock' }, 'MOCK') : null,
-        outdatedOf(id) ? el('span', { class: 'stale', title: 'The request changed after this run' }, 'outdated') : null,
+        outdatedOf(id) ? el('span', { class: 'stale', title: logic ? 'The script changed after this run' : 'The request changed after this run' }, 'outdated') : null,
         acts()),
       el('div', { class: 'dt-meta' }, meta));
   }
 
+  const kindOf = id => (isLogic(blockOf(id)) ? 'logic' : 'request');
+  const tabList = id => (kindOf(id) === 'logic' ? LOGIC_TABS : TABS);
+
   function drawTabs(id, entry, result) {
     const b = blockOf(id);
     const reqHeaders = (entry?.request?.headers || []).filter(h => h.enabled && h.key).length;
-    const counts = { io: (entry?.uses.length ?? 0) + (b.outputs?.length ?? 0), headers: reqHeaders + (result?.response?.headers?.length ?? 0) };
+    const rows = entry?.logic ? logicConsole(result) : [];
+    const counts = { io: (entry?.uses.length ?? 0) + (b.outputs?.length ?? 0), headers: reqHeaders + (result?.response?.headers?.length ?? 0), console: rows.length };
+    const errorDot = rows.some(r => r.level === 'error');
     tabsEl.hidden = false;
-    tabsEl.replaceChildren(...TABS.map(([t, label]) => el('button', {
+    tabsEl.replaceChildren(...tabList(id).map(([t, label]) => el('button', {
       type: 'button', role: 'tab', class: t === tab ? 'on' : '', 'aria-selected': String(t === tab), tabindex: t === tab ? '0' : '-1', dataset: { key: `tab-${t}`, tab: t },
       onclick: () => setTab(t),
-    }, label, counts[t] ? el('span', { class: 'count' }, String(counts[t])) : null)));
+    }, label, counts[t] ? el('span', { class: 'count' }, String(counts[t])) : null,
+      t === 'console' && errorDot ? el('span', { class: 'err-dot', title: 'The script failed', 'aria-label': 'error' }) : null)));
   }
 
   function setTab(t) {
     tab = t;
-    store?.set('flowTab', t);
+    const kind = c?.id ? kindOf(c.id) : 'request';
+    tabs[kind] = t;
+    store?.set(kind === 'logic' ? 'flowLogicTab' : 'flowTab', t);
     paint();
+  }
+
+  // ---------- logic blocks ----------
+  const saveBlock = (id, patch) => Promise.resolve(onChange({ blocks: c.flow.blocks.map(x => (x.id === id ? { ...x, ...patch } : x)) }))
+    .then(res => { if (res?.ok === false) toast(res.error ? `Could not save: ${res.error}` : 'Could not save the block'); return res; });
+
+  function nameInput(id) {
+    const b = blockOf(id);
+    const commit = input => {
+      const name = input.value.trim() || 'Logic';
+      input.value = name;
+      if (name !== (b.name || 'Logic')) saveBlock(id, { name });
+    };
+    return el('input', { type: 'text', class: 'dt-name dt-name-input', value: b.name || 'Logic', 'aria-label': 'Block name', spellcheck: 'false', dataset: { key: 'logic-name' },
+      onblur: e => commit(e.target),
+      onkeydown: e => {
+        if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); }
+        else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); e.target.value = b.name || 'Logic'; e.target.blur(); }
+      } });
+  }
+
+  function flushScript() {
+    if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+    if (!draft || !c) return;
+    const b = blockOf(draft.id);
+    const { id, text } = draft;
+    if (!b || b.script === text) { draft = null; return; }
+    saveBlock(id, { script: text }).then(() => { if (draft?.id === id && draft.text === text) draft = null; });
+  }
+
+  function scriptTab(id) {
+    const b = blockOf(id);
+    if (draft && draft.id === id && draft.text === b.script) draft = null;
+    const text = draft?.id === id ? draft.text : b.script ?? '';
+    const area = el('textarea', { class: 'code-area dt-script', spellcheck: 'false', 'aria-label': 'Script', placeholder: "const total = Number(fw.vars.get('price')) * 2;\nreturn { total };", dataset: { key: 'script' },
+      oninput: e => {
+        draft = { id, text: e.target.value };
+        if (saveTimer) clearTimeout(saveTimer);
+        saveTimer = setTimeout(flushScript, SAVE_DELAY);
+      },
+      onblur: flushScript });
+    area.value = text;
+    const outputs = b.outputs || [];
+    const newName = el('input', { type: 'text', placeholder: 'Output name', 'aria-label': 'New output name', spellcheck: 'false', dataset: { key: 'logic-out-name' },
+      onkeydown: e => { if (e.key === 'Enter') { e.preventDefault(); addOutput(); } } });
+    const error = el('div', { class: 'out-error', role: 'alert', hidden: true });
+    function addOutput() {
+      const problem = outputNameError(newName.value, outputs, -1);
+      if (problem) { error.textContent = problem; error.hidden = false; return; }
+      saveOutputs(b, [...outputs, { name: newName.value.trim() }]);
+      focusKey('logic-out-name');
+    }
+    const detect = () => {
+      const names = detectOutputs(area.value).filter(n => !outputs.some(o => o.name === n));
+      if (!names.length) { toast('No new outputs found'); return; }
+      saveOutputs(b, [...outputs, ...names.map(name => ({ name }))]);
+      toast(`Added ${names.join(', ')}`);
+    };
+    return [
+      el('div', { class: 'dt-sect' }, area, el('div', { class: 'dt-dim dt-hint' }, SCRIPT_HINT)),
+      el('div', { class: 'dt-sect' },
+        el('h4', {}, 'Outputs', el('span', { class: 'count' }, String(outputs.length)),
+          el('button', { type: 'button', class: 'mini-btn ml', title: 'Add the keys of the last return { … } in the script', onclick: detect }, 'Detect')),
+        outputs.length ? el('div', { class: 'logic-outs' }, outputs.map((o, i) => el('span', { class: 'logic-out' }, el('span', { class: 'vn' }, o.name),
+          iconButton('x', `Remove output ${o.name}`, () => saveOutputs(b, outputs.filter((_, j) => j !== i)))))) : dim('No outputs yet. Name the keys your script returns.'),
+        el('div', { class: 'out-edit' }, newName, el('button', { type: 'button', class: 'mini-btn', onclick: addOutput }, '＋ Add output')),
+        error),
+    ];
+  }
+
+  function consoleTab(id, result) {
+    const rows = logicConsole(result);
+    if (!rows.length) return [dim(result && done(result) ? 'The script logged nothing.' : 'Not run yet.')];
+    return [el('div', { class: 'console-list dt-console', role: 'log', 'aria-label': 'Script console' },
+      rows.map(({ level, text }) => el('div', { class: `console-row ${level}` }, el('span', { class: 'console-level' }, level), el('pre', {}, text))))];
   }
 
   // ---------- Inputs / Outputs ----------
@@ -303,11 +426,11 @@ export function createDetails(container, { onGo, onChange, onClose, onOpenReques
     const outputs = b.outputs || [];
     const rows = outputs.map((o, i) => (editing?.index === i ? editRow(b) : outRow(b, o, i, result)));
     if (editing?.index === -1) rows.push(editRow(b));
-    const add = el('button', { type: 'button', class: 'mini-btn ml', disabled: Boolean(editing), onclick: () => { editing = { index: -1, name: '', path: 'body.', error: null }; paint(); focusKey('out-name'); } }, '＋ Add output');
+    const add = el('button', { type: 'button', class: 'mini-btn ml', disabled: Boolean(editing), onclick: () => { editing = { index: -1, name: '', path: isLogic(b) ? undefined : 'body.', error: null }; paint(); focusKey('out-name'); } }, '＋ Add output');
     return [
       sect('Inputs', ins.length, ins.length ? el('table', { class: 'dt-iot' }, ins) : dim('This block uses no variables.')),
       el('div', { class: 'dt-sect' }, el('h4', {}, 'Outputs', el('span', { class: 'count' }, String(outputs.length)), add),
-        rows.length ? el('table', { class: 'dt-iot' }, rows) : dim('No outputs yet. In the Response tab, hover a line and click ＋ Output.')),
+        rows.length ? el('table', { class: 'dt-iot' }, rows) : dim(isLogic(b) ? 'No outputs yet. Add one in the Script tab.' : 'No outputs yet. In the Response tab, hover a line and click ＋ Output.')),
     ];
   }
 
@@ -325,7 +448,7 @@ export function createDetails(container, { onGo, onChange, onClose, onOpenReques
         el('span', { class: 'row-acts' },
           iconButton('edit', `Edit output ${o.name}`, () => { editing = { index: i, name: o.name, path: o.path, error: null }; paint(); focusKey('out-name'); }, { disabled: Boolean(editing) }),
           iconButton('trash', `Remove output ${o.name}`, () => saveOutputs(b, (b.outputs || []).filter((_, j) => j !== i)))),
-        el('div', { class: 'path', title: o.path }, o.path)),
+        o.path != null ? el('div', { class: 'path', title: o.path }, o.path) : null),
       el('td', { class: 'val-cell' }, value),
       el('td', { class: 'src' }, to.length ? ['to ', ...links(to)] : 'to nothing yet'));
   }
@@ -333,9 +456,10 @@ export function createDetails(container, { onGo, onChange, onClose, onOpenReques
   function editRow(b) {
     const save = () => {
       const outputs = [...(b.outputs || [])];
-      const error = outputError(editing.name, editing.path, outputs, editing.index);
+      const logic = isLogic(b);
+      const error = logic ? outputNameError(editing.name, outputs, editing.index) : outputError(editing.name, editing.path, outputs, editing.index);
       if (error) { editing.error = error; paint(); return; }
-      const next = { name: editing.name.trim(), path: editing.path.trim() };
+      const next = logic ? { name: editing.name.trim() } : { name: editing.name.trim(), path: editing.path.trim() };
       if (editing.index === -1) outputs.push(next); else outputs[editing.index] = next;
       editing = null;
       saveOutputs(b, outputs);
@@ -348,7 +472,7 @@ export function createDetails(container, { onGo, onChange, onClose, onOpenReques
     const input = (field, label) => el('input', { type: 'text', value: editing[field], 'aria-label': label, placeholder: label, spellcheck: 'false', dataset: { key: `out-${field}` },
       oninput: e => { editing[field] = e.target.value; }, onkeydown: keys });
     return el('tr', { class: 'editing' }, el('td', { colspan: '3' },
-      el('div', { class: 'out-edit' }, input('name', 'Name'), input('path', 'Path, e.g. body.data.token'),
+      el('div', { class: 'out-edit' }, input('name', 'Name'), isLogic(b) ? null : input('path', 'Path, e.g. body.data.token'),
         el('button', { type: 'button', class: 'mini-btn', onclick: save }, 'Save'), el('button', { type: 'button', class: 'mini-btn', onclick: cancel }, 'Cancel')),
       editing.error ? el('div', { class: 'out-error', role: 'alert' }, editing.error) : null));
   }
@@ -497,7 +621,7 @@ export function createDetails(container, { onGo, onChange, onClose, onOpenReques
     const issues = flow.blocks.flatMap(b => {
       const r = results[b.id], entry = c.analysis.get(b.id), name = el('b', {}, nameOf(b.id));
       const issue = (cls, ...text) => el('button', { type: 'button', class: 'issue', onclick: () => onGo(b.id) }, status(cls, ''), el('span', {}, name, ...text));
-      if (r?.state === 'failed') return [issue('bad', r.errorKind === 'http' && r.response ? ` returned ${r.response.status}` : ` failed: ${r.error || 'no response'}`)];
+      if (r?.state === 'failed') return [issue('bad', r.errorKind === 'http' && r.response ? ` returned ${r.response.status}` : ` failed: ${r.error || (r.logic ? 'script error' : 'no response')}`)];
       if (entry?.deleted) return [issue('bad', ' uses a deleted request')];
       if (r?.state === 'skipped') return [issue('skip', ' was skipped because an earlier block failed')];
       const missing = [...(entry?.missing || []), ...(entry?.conflicts || [])];
@@ -527,11 +651,18 @@ export function createDetails(container, { onGo, onChange, onClose, onOpenReques
     if (!c.id) body.replaceChildren(...overview());
     else {
       const entry = c.analysis.get(c.id), result = c.run?.blocks?.[c.id];
+      tab = tabs[kindOf(c.id)];
       blockHead(c.id, entry, result);
       drawTabs(c.id, entry, result);
-      const why = done(result) ? null : reason(c.id, entry, result);
+      // A logic block's Script tab is for editing, so it never hides behind the "not run" banner.
+      const why = done(result) || tab === 'script' ? null : reason(c.id, entry, result);
+      const list = tabList(c.id);
+      tab = tabs[kindOf(c.id)];
+      if (!list.some(([t]) => t === tab)) tab = list[0][0];
       let content = [];
-      if (tab === 'io') content = ioTab(c.id, entry, result);
+      if (tab === 'script') content = scriptTab(c.id);
+      else if (tab === 'console') content = consoleTab(c.id, result);
+      else if (tab === 'io') content = ioTab(c.id, entry, result);
       else if (tab === 'response') content = why ? [] : responseTab(c.id, result);
       else if (entry?.request) content = tab === 'request' ? requestTab(c.id, entry, result) : headersTab(c.id, entry, result);
       body.replaceChildren(...[why, ...content].filter(Boolean));
@@ -561,8 +692,9 @@ export function createDetails(container, { onGo, onChange, onClose, onOpenReques
     const t = e.target.closest?.('[role="tab"]');
     if (t && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) {
       e.preventDefault();
-      const i = TABS.findIndex(([id]) => id === t.dataset.tab);
-      setTab(TABS[(i + (e.key === 'ArrowRight' ? 1 : TABS.length - 1)) % TABS.length][0]);
+      const list = c?.id ? tabList(c.id) : TABS;
+      const i = list.findIndex(([id]) => id === t.dataset.tab);
+      setTab(list[(i + (e.key === 'ArrowRight' ? 1 : list.length - 1)) % list.length][0]);
       focusKey(`tab-${tab}`);
     }
   });
@@ -570,6 +702,7 @@ export function createDetails(container, { onGo, onChange, onClose, onOpenReques
   function render(ws, flow, run, analysis, selectedId) {
     const id = flow.blocks.some(b => b.id === selectedId) ? selectedId : null;
     if (id !== shownBlock) {
+      if (draft && c) flushScript();
       shownBlock = id;
       editing = null;
       revealed.clear();
@@ -587,6 +720,13 @@ export function createDetails(container, { onGo, onChange, onClose, onOpenReques
   return {
     render,
     element: root,
-    destroy() { sizeWatch.disconnect(); root.remove(); },
+    // Opens a tab of the selected block's kind (e.g. 'script' right after adding a Logic block).
+    openTab(t) {
+      if (LOGIC_TABS.some(([id]) => id === t)) { tabs.logic = t; store?.set('flowLogicTab', t); }
+      else if (TABS.some(([id]) => id === t)) { tabs.request = t; store?.set('flowTab', t); }
+      sig = null;
+      if (c) paint();
+    },
+    destroy() { flushScript(); sizeWatch.disconnect(); root.remove(); },
   };
 }

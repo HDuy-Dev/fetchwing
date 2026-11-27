@@ -269,3 +269,16 @@
 .issue:hover { border-color: var(--control); }
 .issue b { color: var(--text); }
 .issue .ico { width: 16px; height: 16px; font-size: 10px; margin-top: 1px; }
+
+/* Logic blocks in the details column */
+.dt-name-input { display: block; flex: 1; width: 100%; border: 1px solid transparent; border-radius: var(--r-sm); background: none; color: inherit; padding: 1px 4px; margin-left: -4px; font: 600 14px/1.35 inherit; outline: none; }
+.dt-name-input:hover { border-color: var(--control); }
+.dt-name-input:focus { border-color: var(--accent-line); background: var(--bg); }
+.dt-tabs .err-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--err); margin-left: 5px; vertical-align: middle; }
+.dt-script { min-height: 180px; }
+.dt-hint { margin-top: 6px; font: 11px var(--mono); }
+.logic-outs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.logic-out { display: inline-flex; align-items: center; gap: 2px; padding: 0 2px 0 8px; border: 1px solid var(--divider); border-radius: var(--r-sm); font: 12px var(--mono); }
+.logic-out .ibtn { width: 20px; height: 20px; }
+.dt-console { border-top: 1px solid var(--divider); }
+.dt-console .console-row { padding: 3px 0; }
