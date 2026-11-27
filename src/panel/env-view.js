@@ -106,17 +106,26 @@ export function createEnvView(container, env, { getWs, mutate, send, onDuplicate
   }
 
   const head = el('div', { class: 'env-head' });
+  const activeSlot = el('span', { class: 'env-active-slot' });
   let shownActive = null;
-  const drawHead = () => {
+  // Only the slot is replaced, so the name field keeps its focus and caret.
+  const drawActive = () => {
     shownActive = envId === getWs().activeEnvId;
+    const hadFocus = activeSlot.contains(document.activeElement);
+    activeSlot.replaceChildren(shownActive
+      ? el('span', { class: 'env-active' }, icon('check'), 'Active')
+      : el('button', { type: 'button', class: 'btn env-set-active', onclick: () => mutate({ type: 'setActiveEnv', id: envId }) }, 'Set active'));
+    // The pressed button is gone; the keyboard moves on to the next action.
+    if (hadFocus) activeSlot.nextElementSibling.focus();
+  };
+  const drawHead = () => {
     head.replaceChildren(
       nameInput,
-      shownActive
-        ? el('span', { class: 'env-active' }, icon('check'), 'Active')
-        : el('button', { type: 'button', class: 'btn env-set-active', onclick: () => mutate({ type: 'setActiveEnv', id: envId }) }, 'Set active'),
+      activeSlot,
       iconButton('copy', 'Duplicate', () => onDuplicate(envId)),
       iconButton('trash', 'Delete', confirmDelete, { class: 'ibtn env-delete' }),
     );
+    drawActive();
   };
 
   function confirmDelete() {
@@ -156,8 +165,7 @@ export function createEnvView(container, env, { getWs, mutate, send, onDuplicate
     update(ws) {
       const saved = current();
       if (!saved) return;
-      // Redrawing moves nameInput, which would drop its focus.
-      if (!confirming && shownActive !== (envId === ws.activeEnvId)) drawHead();
+      if (!confirming && shownActive !== (envId === ws.activeEnvId)) drawActive();
       if (!save.isPending() && !inFlight && !sameEnv(nameInput.value, vars, saved)) load(saved);
     },
     addVar(name) {

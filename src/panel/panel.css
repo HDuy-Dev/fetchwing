@@ -310,6 +310,7 @@ table.kv tr.blank input[type="text"]:focus { border-style: solid; border-color: 
 .env-saved, .env-active, .env-check { display: inline-flex; align-items: center; gap: 6px; }
 .env-check { color: var(--accent); }
 .env-head { display: flex; align-items: center; gap: 6px; }
+.env-active-slot { display: contents; }
 .env-view .env-name { flex: 1; min-width: 0; height: 30px; padding: 0 8px; border: 1px solid var(--control); border-radius: var(--r-md); background: var(--bg); font-weight: 600; outline: none; }
 .env-view .env-name:focus { border-color: var(--accent-line); }
 .env-active { height: 30px; padding: 0 10px; border-radius: var(--r-lg); background: var(--accent-soft); color: var(--accent); white-space: nowrap; }
