@@ -120,20 +120,48 @@ export function showMenu(x, y, items) {
   return close;
 }
 
-// Modal dialog. build(box, close) fills it in.
-export function openDialog(build, { className = 'dialog' } = {}) {
+// The one open dialog, and what is waiting for it to close.
+let current = null;
+let waiting = [];
+
+// False when the open dialog holds on to unsaved work; it then asks about it itself.
+const mayClose = () => !current?.canClose || current.canClose();
+
+export function afterDialog(fn) {
+  if (current) waiting.push(fn);
+  else fn();
+}
+
+// Modal dialog. build(box, close) fills it in; `close` always closes. `canClose()` is
+// asked on Escape, a press outside, dismissDialog() and before another dialog takes
+// its place: then null is returned and nothing is built.
+export function openDialog(build, { className = 'dialog', canClose, onClosed } = {}) {
+  if (!mayClose()) return null;
+  current?.close({ replaced: true });
   const backdrop = document.getElementById('dialog');
   backdrop.textContent = '';
   const box = el('div', { class: className, role: 'dialog', 'aria-modal': 'true' });
-  const close = () => {
+  const record = { canClose };
+  record.close = ({ replaced = false } = {}) => {
+    if (current !== record) return;
+    current = null;
     backdrop.hidden = true;
     backdrop.textContent = '';
     document.removeEventListener('keydown', onKey, true);
+    onClosed?.();
+    if (!replaced) waiting.splice(0).forEach(fn => fn());
   };
-  const onKey = e => { if (e.key === 'Escape') { e.preventDefault(); close(); } };
+  const close = () => record.close();
+  const onKey = e => {
+    if (e.isComposing || e.keyCode === 229) return;
+    if (e.key !== 'Escape') return;
+    e.preventDefault();
+    if (mayClose()) close();
+  };
+  current = record;
   backdrop.append(box);
   backdrop.hidden = false;
-  backdrop.onmousedown = e => { if (e.target === backdrop) close(); };
+  backdrop.onmousedown = e => { if (e.target === backdrop && mayClose()) close(); };
   document.addEventListener('keydown', onKey, true);
   build(box, close);
   box.querySelector('input, textarea, button')?.focus();
