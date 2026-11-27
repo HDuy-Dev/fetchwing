@@ -11,7 +11,11 @@ import { createRequestEditor } from './request-editor.js';
 import { initSplit, initSideResize } from './split.js';
 import { renderResponse } from './response-view.js';
 import { renderMockEditor, mockFromResponse, setMockOn } from './mock-editor.js';
-import { openEnvironments } from './env-editor.js';
+import { createEnvView } from './env-view.js';
+import { renderEnvList } from './env-list.js';
+import { initEnvPicker } from './env-picker.js';
+import { copyName } from '../lib/env-form.js';
+import { tabKind, insertTab, pruneTabs } from '../lib/tab-model.js';
 import { openSettings } from './settings-view.js';
 import { editorParams } from '../lib/editor-window.js';
 import { renderFlowList } from './flow-list.js';
@@ -53,7 +57,8 @@ const state = {
   pane: 'response',
   editor: null,
   editorFor: null,
-  activeId: null, // the request shown in the main area (selection may be a folder)
+  envView: null, // the environment shown in the main area
+  activeId: null, // the tab shown in the main area (selection may be a folder)
   inspectedOrigin: null,
   sync: { state: 'off', email: null, error: null, lastSyncAt: null },
 };
@@ -113,7 +118,6 @@ const mocksOn = () => liveRequests(state.ws).filter(r => r.mock.enabled);
 
 $('logoMark').append(icon('logo'));
 $('searchBox').append(icon('search'), el('span', {}, 'Search requests'), el('span', { class: 'ml-auto mono', style: 'font-size:11px' }, navigator.platform.includes('Mac') ? '⌘K' : 'Ctrl K'));
-$('envIcon').append(icon('braces'));
 $('settingsBtn').append(icon('gear'));
 $('drawerToggle').append(icon('menu'));
 const RAIL = { collections: ['folder', 'Collections'], environments: ['braces', 'Environments'], mocks: ['mock', 'Mocks'], flows: ['flow', 'Flows'] };
@@ -141,15 +145,20 @@ const closeDrawer = () => $('app').classList.remove('drawer-open');
 function persistTabs() { store.set('tabs', state.openTabs); }
 
 function select(id) {
-  // A request picked from search shows in the request area, which Flows covers.
-  if (isLiveRequest(id) && state.section === 'flows') { state.section = 'collections'; store.set('section', state.section); }
+  const kind = tabKind(state.ws, id);
+  // A request or environment picked while Flows covers the main area leaves Flows.
+  if (kind && state.section === 'flows') {
+    state.section = kind === 'env' ? 'environments' : 'collections';
+    store.set('section', state.section);
+  }
   state.selectedId = id;
   store.set('selected', id);
-  if (isLiveRequest(id) && !state.openTabs.includes(id)) {
-    state.openTabs.push(id);
+  if (kind && !state.openTabs.includes(id)) {
+    // An environment opens next to the tab in view; a request goes last.
+    state.openTabs = kind === 'env' ? insertTab(state.openTabs, id, state.activeId) : [...state.openTabs, id];
     persistTabs();
   }
-  if (isLiveRequest(id)) closeDrawer();
+  if (kind) closeDrawer();
   render();
 }
 
@@ -157,13 +166,75 @@ function closeTab(id) {
   const at = state.openTabs.indexOf(id);
   if (at === -1) return;
   if (id === state.editorFor) state.editor?.flush();
+  if (id === state.envView?.envId) state.envView.flush();
   state.openTabs.splice(at, 1);
   persistTabs();
   if (state.selectedId === id) {
     state.selectedId = state.openTabs[at] ?? state.openTabs[at - 1] ?? null;
     store.set('selected', state.selectedId);
   }
+  // Or render() would keep showing a tab that is gone.
+  if (state.activeId === id) state.activeId = state.openTabs[at] ?? state.openTabs[at - 1] ?? null;
   render();
+}
+
+// ---------- environment tabs ----------
+
+const refreshWorkspace = async () => { state.ws = (await send({ type: 'getWorkspace' })).workspace ?? state.ws; };
+
+function openEnvTab(id, { addVar, focusName } = {}) {
+  select(id);
+  if (state.envView?.envId !== id) return;
+  if (addVar) state.envView.addVar(addVar);
+  else if (focusName) state.envView.focusName();
+}
+
+async function addEnv(name, vars = []) {
+  const id = newId();
+  if (!(await mutate({ type: 'addEnvironment', id, name })).ok) return null;
+  if (vars.length) await mutate({ type: 'updateEnvironment', id, patch: { vars } });
+  await refreshWorkspace();
+  return id;
+}
+
+async function createEnv() {
+  const id = await addEnv('New environment');
+  if (id) openEnvTab(id, { focusName: true });
+}
+
+async function duplicateEnv(id) {
+  if (state.envView?.envId === id) await state.envView.flush();
+  await refreshWorkspace();
+  const source = state.ws.environments[id];
+  if (!source || source.deleted) return;
+  const copy = await addEnv(copyName(source.name), source.vars);
+  if (copy) openEnvTab(copy, { focusName: true });
+}
+
+const drawTabs = () => {
+  renderTabs($('openTabs'), state.ws, state.openTabs, state.activeId, tabHandlers);
+  $('openTabs').hidden = !state.openTabs.length;
+};
+
+function unmountEnv() {
+  state.envView?.destroy();
+  state.envView = null;
+  $('envMain').hidden = true;
+}
+
+function renderEnvMain(id) {
+  $('envMain').hidden = false;
+  if (state.envView?.envId === id) {
+    state.envView.update(state.ws);
+    return;
+  }
+  state.envView?.destroy();
+  state.envView = createEnvView($('envMain'), state.ws.environments[id], {
+    getWs: () => state.ws,
+    mutate, send,
+    onDuplicate: duplicateEnv,
+    onPendingChange: () => { if (tabKind(state.ws, state.activeId) === 'env' && state.section !== 'flows') drawTabs(); },
+  });
 }
 
 function expandPath(id) {
@@ -267,6 +338,7 @@ function unmountFlow() {
 // Shows the selected flow in place of the request area; false when there is none to show.
 function renderFlowMain() {
   if (state.section !== 'flows') { unmountFlow(); return false; }
+  unmountEnv();
   $('openTabs').hidden = true;
   $('emptyMain').hidden = true;
   $('work').hidden = true;
@@ -303,7 +375,8 @@ const tabHandlers = {
   onActivate: select,
   onClose: closeTab,
   onNew: newRequest,
-  isPending: id => id === state.editorFor && Boolean(state.editor?.isPending()),
+  isPending: id => (id === state.editorFor && Boolean(state.editor?.isPending()))
+    || (id === state.envView?.envId && state.envView.isPending()),
 };
 
 // ---------- cURL: paste & import ----------
@@ -433,13 +506,12 @@ const cancelActive = () => send({ type: 'cancelSend', requestId: state.activeId 
 
 async function addVariable(name) {
   if (!liveEnvironments(state.ws).length) {
-    const id = newId();
-    const res = await mutate({ type: 'addEnvironment', id, name: 'Local' });
-    if (!res.ok) return;
+    const id = await addEnv('Local');
+    if (!id) return;
     await mutate({ type: 'setActiveEnv', id });
-    state.ws = (await send({ type: 'getWorkspace' })).workspace ?? state.ws;
+    await refreshWorkspace();
   }
-  openEnvironments(state, { addVar: name });
+  openEnvTab(tabKind(state.ws, state.ws.activeEnvId) ? state.ws.activeEnvId : liveEnvironments(state.ws)[0].id, { addVar: name });
 }
 
 // ---------- bottom panes ----------
@@ -475,15 +547,12 @@ function renderBottom() {
 
 // ---------- top bar ----------
 
-function renderTopbar() {
-  const sel = $('envSelect');
-  sel.textContent = '';
-  sel.append(el('option', { value: '' }, 'No environment'));
-  for (const env of liveEnvironments(state.ws)) sel.append(el('option', { value: env.id, selected: env.id === state.ws.activeEnvId }, env.name));
-  if (!state.ws.activeEnvId) sel.value = '';
-}
+const envPicker = initEnvPicker($('envPill'), {
+  getWs: () => state.ws,
+  onPick: id => mutate({ type: 'setActiveEnv', id }),
+  onCreate: () => createEnv(),
+});
 
-$('envSelect').addEventListener('change', e => mutate({ type: 'setActiveEnv', id: e.target.value || null }));
 $('settingsBtn').addEventListener('click', () => openSettings(state));
 $('searchBox').addEventListener('click', () => openSearch(state.ws, id => { expandPath(id); select(id); }));
 $('searchBox').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $('searchBox').click(); } });
@@ -588,10 +657,21 @@ const pauseAll = async () => {
 
 // ---------- sidebar sections ----------
 
+const setActiveEnv = id => mutate({ type: 'setActiveEnv', id });
+
+const envListHandlers = {
+  onOpen: openEnvTab,
+  onSetActive: setActiveEnv,
+  onDuplicate: duplicateEnv,
+  onDelete: id => mutate({ type: 'deleteEnvironment', id }),
+};
+
 function renderSide() {
   const title = $('sideTitle');
   const actions = $('sideActions');
   const content = $('sideContent');
+  // Not :focus, which stops matching while the window is in the background.
+  const typingIn = content.contains(document.activeElement) && document.activeElement.matches('.env-filter') ? document.activeElement : null;
   title.textContent = RAIL[state.section][1];
   actions.textContent = '';
   content.textContent = '';
@@ -610,22 +690,8 @@ function renderSide() {
     content.append(tree);
     renderTree(tree, state.ws, state.selectedId, treeHandlers);
   } else if (state.section === 'environments') {
-    actions.append(iconButton('plus', 'New environment', async () => {
-      const id = newId();
-      const res = await mutate({ type: 'addEnvironment', id, name: 'New environment' });
-      if (res.ok) { state.ws = (await send({ type: 'getWorkspace' })).workspace ?? state.ws; openEnvironments(state, { envId: id }); }
-    }));
-    const envs = liveEnvironments(state.ws);
-    if (!envs.length) content.append(el('div', { class: 'side-empty' }, 'No environments yet.'));
-    for (const env of envs) {
-      const active = env.id === state.ws.activeEnvId;
-      content.append(el('button', {
-        type: 'button', class: 'list-row', 'aria-current': active ? 'true' : undefined,
-        onclick: () => openEnvironments(state, { envId: env.id }),
-      }, icon('braces'), el('span', { class: 'name' }, env.name),
-      el('span', { class: 'sub' }, String(env.vars.length)),
-      active ? el('span', { class: 'mdot', style: 'background:var(--accent)', title: 'Active', 'aria-label': 'Active' }) : null));
-    }
+    actions.append(iconButton('plus', 'New environment', createEnv));
+    renderEnvList(content, state.ws, tabKind(state.ws, state.activeId) === 'env' ? state.activeId : null, envListHandlers);
   } else if (state.section === 'flows') {
     actions.append(iconButton('plus', 'New flow', newFlow));
     const list = el('div');
@@ -652,6 +718,7 @@ function renderSide() {
       }, el('span', { class: `m ${r.method}` }, r.method), el('span', { class: 'name' }, r.name), sw));
     }
   }
+  if (typingIn?.isConnected) typingIn.focus();
   const railMocks = document.querySelector('.rail [data-section="mocks"]');
   railMocks.querySelector('.n')?.remove();
   if (mocksOn().length) railMocks.append(el('span', { class: 'n mdot', 'aria-hidden': 'true' }));
@@ -673,11 +740,11 @@ function renderEmpty() {
 
 function render() {
   if (!state.ws) return;
-  // Requests deleted elsewhere drop out of the open tabs.
-  const live = state.openTabs.filter(isLiveRequest);
-  if (live.length !== state.openTabs.length) { state.openTabs = live; persistTabs(); }
-  if (state.selectedId && (!state.ws.items[state.selectedId] || state.ws.items[state.selectedId].deleted)) {
-    state.selectedId = state.openTabs[state.openTabs.length - 1] ?? null;
+  // Tabs whose request or environment was deleted elsewhere drop out.
+  const pruned = pruneTabs(state.ws, state.openTabs, state.selectedId);
+  if (pruned.ids.length !== state.openTabs.length) { state.openTabs = pruned.ids; persistTabs(); }
+  if (pruned.selectedId !== state.selectedId) {
+    state.selectedId = pruned.selectedId;
     store.set('selected', state.selectedId);
   }
   if (state.flowId && !isLiveFlow(state.flowId)) {
@@ -685,24 +752,28 @@ function render() {
     store.set('flow', null);
   }
 
-  renderTopbar();
-  renderSide();
-  if (renderFlowMain()) return;
-
-  // The main area shows the active tab; selecting a folder keeps the last request open.
-  const activeId = isLiveRequest(state.selectedId) ? state.selectedId
+  // The main area shows the active tab; selecting a folder keeps the last one open.
+  const activeId = tabKind(state.ws, state.selectedId) ? state.selectedId
     : state.openTabs.includes(state.activeId) ? state.activeId : state.openTabs[state.openTabs.length - 1] ?? null;
   state.activeId = activeId;
-  renderTabs($('openTabs'), state.ws, state.openTabs, activeId, tabHandlers);
-  $('openTabs').hidden = !state.openTabs.length;
 
-  const item = activeId ? state.ws.items[activeId] : null;
-  $('emptyMain').hidden = Boolean(item);
+  envPicker.render();
+  renderSide();
+  if (renderFlowMain()) return;
+  drawTabs();
+
+  const kind = activeId ? tabKind(state.ws, activeId) : null;
+  const item = kind === 'request' ? state.ws.items[activeId] : null;
+  $('emptyMain').hidden = Boolean(kind);
   $('work').hidden = !item;
+  if (kind !== 'env') unmountEnv();
   if (!item) {
+    // A deleted request has nothing left to save.
+    if (isLiveRequest(state.editorFor)) state.editor.flush();
     state.editor = null;
     state.editorFor = null;
-    renderEmpty();
+    if (kind === 'env') renderEnvMain(activeId);
+    else renderEmpty();
     return;
   }
   // A newer version from sync (or another panel) replaces an editor with no unsaved typing.
@@ -713,7 +784,7 @@ function render() {
     state.editor = createRequestEditor($('editor'), item, {
       missingFor: url => resolveVars(url, envVars(state.ws)).missing,
       onChange: patch => mutate({ type: 'updateRequest', id: item.id, patch }),
-      onPendingChange: () => renderTabs($('openTabs'), state.ws, state.openTabs, state.activeId, tabHandlers),
+      onPendingChange: drawTabs,
       onSend: sendActive,
       onCancel: cancelActive,
       onAddVar: addVariable,
