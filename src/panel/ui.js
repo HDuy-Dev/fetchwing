@@ -36,6 +36,7 @@ const ICONS = {
   maximize: '<path d="M14 4h6v6M20 4l-7 7M10 20H4v-6M4 20l7-7"/>',
   popout: '<path d="M14 4h6v6"/><path d="M20 4l-8 8"/><path d="M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4"/>',
   play: '<path d="M7 5v14l11-7z"/>',
+  terminal: '<path d="m5 8 4 4-4 4"/><path d="M12 16h7"/>',
   stop: '<rect x="6" y="6" width="12" height="12" rx="1.5"/>',
   moon: '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>',
 };

@@ -11,10 +11,16 @@ export function newRequest(fields = {}) {
     url: '',
     headers: [],
     body: { mode: 'none', raw: '', fields: [] },
+    script: '',
     mock: { enabled: false, status: 200, headers: [], body: '', delayMs: 0 },
     ...fields,
   };
 }
+
+// Same method, URL, headers, body and script (a request saved before scripts existed has none).
+const CONTENT_FIELDS = ['method', 'url', 'headers', 'body'];
+export const sameRequestContent = (a, b) => CONTENT_FIELDS.every(k => JSON.stringify(a[k]) === JSON.stringify(b[k]))
+  && (a.script ?? '') === (b.script ?? '');
 
 export function emptyWorkspace() {
   const collectionId = newId();
@@ -82,7 +88,7 @@ function hasCycle(edges) {
 }
 
 const isContainer = item => item && !item.deleted && (item.type === 'collection' || item.type === 'folder');
-const REQUEST_FIELDS = ['method', 'url', 'headers', 'body', 'name'];
+const REQUEST_FIELDS = ['method', 'url', 'headers', 'body', 'script', 'name'];
 const MOCK_FIELDS = ['status', 'headers', 'body', 'delayMs'];
 
 function isDescendant(ws, id, ancestorId) {
@@ -189,6 +195,25 @@ export function applyMutation(ws, m, now) {
       }
       if ('vars' in m.patch) patch.vars = m.patch.vars.map(v => ({ key: String(v.key), value: String(v.value), secret: Boolean(v.secret) }));
       touchEnv(m.id, patch);
+      return { workspace: next };
+    }
+    case 'applyEnvChanges': {
+      const env = liveEnv(m.id);
+      if (!env) return { error: 'not_found' };
+      const vars = env.vars.map(v => ({ ...v }));
+      for (const c of m.changes ?? []) {
+        const key = String(c.key ?? '');
+        if (!key) continue;
+        // {{key}} resolves to the last row with that key, so set that one and unset them all.
+        const at = vars.findLastIndex(v => v.key === key);
+        if (c.op === 'unset') { for (let i = vars.length - 1; i >= 0; i--) if (vars[i].key === key) vars.splice(i, 1); }
+        else if (c.op === 'set') {
+          const value = String(c.value ?? '');
+          if (at === -1) vars.push({ key, value, secret: false });
+          else vars[at] = { ...vars[at], value };
+        }
+      }
+      touchEnv(m.id, { vars });
       return { workspace: next };
     }
     case 'deleteEnvironment': {

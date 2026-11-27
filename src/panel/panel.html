@@ -41,16 +41,18 @@
       <div class="work" id="work" hidden>
         <section class="req" id="editor" aria-label="Request"></section>
         <div class="splitter" id="splitter" role="separator" aria-orientation="horizontal" aria-label="Resize request and response" tabindex="0" title="Drag to resize, double-click to reset"></div>
-        <section class="resp" id="bottom" aria-label="Response and mock">
+        <section class="resp" id="bottom" aria-label="Response, mock and console">
           <div class="resp-head">
             <div role="tablist" style="display:flex;gap:16px">
               <button class="subtab" role="tab" type="button" data-pane="response" aria-selected="true">Response</button>
               <button class="subtab" role="tab" type="button" data-pane="mock" aria-selected="false">Mock <span class="mdot" id="mockTabDot" title="Mock on" aria-label="Mock on" hidden></span></button>
+              <button class="subtab" role="tab" type="button" data-pane="console" aria-selected="false">Console <span class="edot" id="consoleDot" title="Script error" aria-label="Script error" hidden></span></button>
             </div>
             <div class="stats" id="stats"></div>
           </div>
           <div class="pane" id="responsePane"></div>
           <div class="pane" id="mockPane" hidden></div>
+          <div class="pane" id="consolePane" hidden></div>
         </section>
       </div>
     </main>

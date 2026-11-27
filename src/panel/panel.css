@@ -210,6 +210,7 @@ table.kv tr.blank input[type="text"]:focus { border-style: solid; border-color: 
 .btn.btn-small { height: 26px; padding: 0 10px; font-size: 12px; }
 .code-area { width: 100%; min-height: 120px; border: 1px solid var(--control); border-radius: var(--r-lg); background: var(--bg); padding: 8px 12px; font: 12.5px/1.6 var(--mono); resize: vertical; outline: none; }
 .code-area:focus { border-color: var(--accent-line); }
+.script-area { min-height: 160px; tab-size: 2; }
 .hint { color: var(--muted); font-size: 12px; }
 
 /* ---------- response / mock ---------- */
@@ -416,3 +417,15 @@ table.kv tr.blank input[type="text"]:focus { border-style: solid; border-color: 
 
 /* shown when the extension was reloaded under this panel */
 .gone { position: fixed; top: 0; left: 0; right: 0; z-index: 50; padding: 10px 16px; background: var(--err); color: var(--bg); font-weight: 600; text-align: center; }
+
+/* Script console */
+.console-list { overflow: auto; min-height: 0; flex: 1; padding: 0 0 8px; font: 12px/1.55 var(--mono); }
+.console-row { display: flex; gap: 10px; padding: 3px 16px; border-bottom: 1px solid var(--divider); }
+.console-row pre { margin: 0; white-space: pre-wrap; word-break: break-word; flex: 1; min-width: 0; font: inherit; }
+.console-level { width: 40px; flex-shrink: 0; color: var(--faint); text-transform: uppercase; font-size: 10.5px; padding-top: 1px; }
+.console-row.warn { background: color-mix(in srgb, var(--warn) 8%, transparent); }
+.console-row.warn .console-level { color: var(--warn); }
+.console-row.error { background: var(--err-soft); }
+.console-row.error .console-level, .console-row.error pre { color: var(--err); }
+.console-row.info .console-level { color: var(--accent); }
+.edot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--err); flex-shrink: 0; }

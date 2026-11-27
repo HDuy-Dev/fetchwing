@@ -1,6 +1,6 @@
 // Fetchwing DevTools panel: wires the views to the background worker.
 
-import { children, newId, pathOf, liveRequests, liveEnvironments } from '../lib/model.js';
+import { children, newId, pathOf, liveRequests, liveEnvironments, sameRequestContent } from '../lib/model.js';
 import { parseCurl, splitCurlCommands } from '../lib/curl.js';
 import { envVars, resolveVars } from '../lib/vars.js';
 import { isListedMock } from '../lib/mocks.js';
@@ -10,6 +10,9 @@ import { openSearch } from './search.js';
 import { createRequestEditor } from './request-editor.js';
 import { initSplit, initSideResize } from './split.js';
 import { renderResponse } from './response-view.js';
+import { renderConsole, hasConsoleError } from './console-view.js';
+import { createScriptRunner, iframeFrame } from './script-runner.js';
+import { consoleEntries } from '../lib/script-console.js';
 import { renderMockEditor, mockFromResponse, setMockOn } from './mock-editor.js';
 import { createEnvView } from './env-view.js';
 import { renderEnvList } from './env-list.js';
@@ -54,6 +57,7 @@ const state = {
   openTabs: store.get('tabs', []),
   expanded: new Set(store.get('expanded', [])),
   responses: new Map(), // requestId -> { loading, startedAt } | { error } | { response }
+  consoles: new Map(), // requestId -> { at, items: [{ level, text }] } from the last script run
   pane: 'response',
   editor: null,
   editorFor: null,
@@ -296,6 +300,7 @@ const treeHandlers = {
   onDelete: async id => {
     await mutate({ type: 'deleteItem', id });
     state.responses.delete(id);
+    state.consoles.delete(id);
   },
   isExpanded: id => state.expanded.has(id),
   toggle: id => {
@@ -491,6 +496,7 @@ async function sendActive() {
   if (access === 'gone') return fail('Fetchwing was reloaded', GONE_ERROR);
   if (access === 'denied') return fail('No access', `Fetchwing needs permission to reach ${origin}`);
   state.editor?.flush();
+  const script = draft.script ?? '';
   state.responses.set(item.id, { loading: true, startedAt: Date.now() });
   if (state.editorFor === item.id) state.editor?.setSending(true);
   showPane('response');
@@ -500,6 +506,26 @@ async function sendActive() {
       : { error: 'Request failed', detail: res?.error ?? 'Send failed' });
   if (state.editorFor === item.id) state.editor?.setSending(false);
   if (state.activeId === item.id) renderBottom();
+  if (res?.ok && script.trim()) await runRequestScript(item.id, script, res.response);
+}
+
+const scriptRunner = createScriptRunner({ createFrame: iframeFrame() });
+
+// Runs the request's script on its response, saves env changes into the
+// active environment and fills that request's Console.
+async function runRequestScript(requestId, script, response) {
+  const envId = state.ws.activeEnvId;
+  const env = state.ws.environments?.[envId];
+  const liveEnv = env && !env.deleted ? env : null;
+  const result = await scriptRunner.run({ script, response, vars: envVars(state.ws) });
+  let envSaved = false;
+  if (liveEnv && result.changes.length) {
+    const res = await mutate({ type: 'applyEnvChanges', id: envId, changes: result.changes });
+    envSaved = Boolean(res?.ok);
+  }
+  const secretKeys = new Set((liveEnv?.vars ?? []).filter(v => v.secret).map(v => v.key));
+  state.consoles.set(requestId, { at: Date.now(), items: consoleEntries(result, { secretKeys, envSaved }) });
+  if (state.activeId === requestId) renderBottom();
 }
 
 const cancelActive = () => send({ type: 'cancelSend', requestId: state.activeId });
@@ -529,9 +555,15 @@ function renderBottom() {
   document.querySelectorAll('.resp-head [data-pane]').forEach(b => b.setAttribute('aria-selected', String(b.dataset.pane === state.pane)));
   $('responsePane').hidden = state.pane !== 'response';
   $('mockPane').hidden = state.pane !== 'mock';
+  $('consolePane').hidden = state.pane !== 'console';
   $('stats').hidden = state.pane !== 'response';
   $('mockTabDot').hidden = !item.mock.enabled;
-  if (state.pane === 'response') {
+  $('consoleDot').hidden = !hasConsoleError(state.consoles.get(item.id));
+  if (state.pane === 'console') {
+    renderConsole($('consolePane'), state.consoles.get(item.id), {
+      onClear: () => { state.consoles.delete(item.id); renderBottom(); },
+    });
+  } else if (state.pane === 'response') {
     renderResponse($('responsePane'), $('stats'), state.responses.get(item.id), {
       onRetry: sendActive,
       onMockThis: async response => {
@@ -731,8 +763,6 @@ function renderSide() {
 
 // ---------- render ----------
 
-const REQUEST_FIELDS = ['method', 'url', 'headers', 'body'];
-const sameRequest = (draft, item) => REQUEST_FIELDS.every(k => JSON.stringify(draft[k]) === JSON.stringify(item[k]));
 
 function renderEmpty() {
   const box = $('emptyMain');
@@ -782,7 +812,7 @@ function render() {
     return;
   }
   // A newer version from sync (or another panel) replaces an editor with no unsaved typing.
-  const stale = state.editorFor === item.id && !state.editor.isPending() && !sameRequest(state.editor.getDraft(), item);
+  const stale = state.editorFor === item.id && !state.editor.isPending() && !sameRequestContent(state.editor.getDraft(), item);
   if (state.editorFor !== item.id || stale) {
     if (!stale) state.editor?.flush();
     state.editorFor = item.id;

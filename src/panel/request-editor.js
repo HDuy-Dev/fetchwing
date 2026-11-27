@@ -1,4 +1,4 @@
-// Request editor: method + URL + Send, missing-variable warning, Params / Headers / Body.
+// Request editor: method + URL + Send, missing-variable warning, Params / Headers / Body / Script.
 
 import { el, icon, debounce, METHODS } from './ui.js';
 import { BODY_MODES, bodyBadge, bodylessWarning, blankRowLabels } from '../lib/body-view.js';
@@ -8,6 +8,8 @@ const BODY_HINTS = {
   formdata: "Text fields only. File upload isn't supported yet.",
 };
 const RAW_PLACEHOLDERS = { json: '{ "name": "value" }', text: 'Enter the request body' };
+const SCRIPT_PLACEHOLDER = "// Runs after the response arrives\nconst data = fw.response.json();\nfw.env.set('token', data.token);";
+const SCRIPT_HINT = 'Runs after each Send. Use fw.response.json(), fw.env.get/set(), console.log(). Scripts using pm.* also work.';
 
 // Query string <-> rows, keeping the user's encoding as typed.
 export function splitUrl(url) {
@@ -29,7 +31,7 @@ export function joinUrl(base, rows) {
 
 // opts: { onChange(patch), onSend(), onCancel(), onAddVar(name), missingFor(url): string[], onPendingChange() }
 export function createRequestEditor(container, request, opts) {
-  const draft = structuredClone({ method: request.method, url: request.url, headers: request.headers, body: request.body });
+  const draft = structuredClone({ method: request.method, url: request.url, headers: request.headers, body: request.body, script: request.script ?? '' });
   const save = debounce(() => { opts.onChange(structuredClone(draft)); opts.onPendingChange?.(); }, 300);
   const touch = () => { save(); opts.onPendingChange?.(); };
   let tab = 'params';
@@ -149,9 +151,33 @@ export function createRequestEditor(container, request, opts) {
       }));
     } else if (tab === 'headers') {
       tabBody.append(kvTable(draft.headers, { withEnabled: true, kind: 'header', onEdit: () => { drawTabs(); touch(); } }));
+    } else if (tab === 'script') {
+      renderScript();
     } else {
       renderBody();
     }
+  }
+
+  function renderScript() {
+    const area = el('textarea', { class: 'code-area script-area', spellcheck: 'false', 'aria-label': 'Script', placeholder: SCRIPT_PLACEHOLDER });
+    area.value = draft.script;
+    const hadScript = () => Boolean(draft.script.trim());
+    area.addEventListener('input', () => {
+      const before = hadScript();
+      draft.script = area.value;
+      if (before !== hadScript()) drawTabs();
+      touch();
+    });
+    area.addEventListener('keydown', e => {
+      if (e.key !== 'Tab' || e.shiftKey || e.metaKey || e.ctrlKey || e.altKey) return;
+      e.preventDefault();
+      // execCommand keeps the browser's undo stack; fall back to setRangeText.
+      if (!document.execCommand?.('insertText', false, '  ')) {
+        area.setRangeText('  ', area.selectionStart, area.selectionEnd, 'end');
+        area.dispatchEvent(new Event('input'));
+      }
+    });
+    tabBody.append(area, el('div', { class: 'hint body-note' }, SCRIPT_HINT));
   }
 
   function renderBody() {
@@ -206,12 +232,13 @@ export function createRequestEditor(container, request, opts) {
     const params = splitUrl(draft.url).rows.length;
     const headers = draft.headers.filter(h => h.enabled !== false && h.key).length;
     const badge = bodyBadge(draft.body.mode);
-    for (const [id, label, count] of [['params', 'Params', params], ['headers', 'Headers', headers], ['body', 'Body', 0]]) {
+    for (const [id, label, count] of [['params', 'Params', params], ['headers', 'Headers', headers], ['body', 'Body', 0], ['script', 'Script', 0]]) {
       tabsEl.append(el('button', {
         type: 'button', role: 'tab', class: 'subtab', 'aria-selected': String(tab === id), dataset: { tab: id },
         onclick: () => { tab = id; drawTabs(); renderTab(); },
       }, label, count ? el('span', { class: 'count' }, String(count)) : null,
-      id === 'body' && badge ? el('span', { class: 'count' }, badge) : null));
+      id === 'body' && badge ? el('span', { class: 'count' }, badge) : null,
+      id === 'script' && draft.script.trim() ? el('span', { class: 'count', title: 'Has a script', 'aria-label': 'has a script' }, '•') : null));
     }
   }
 
