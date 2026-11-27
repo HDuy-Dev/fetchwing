@@ -670,7 +670,8 @@ function renderSide() {
   const title = $('sideTitle');
   const actions = $('sideActions');
   const content = $('sideContent');
-  const typingIn = content.querySelector('.env-filter:focus');
+  // Not :focus, which stops matching while the window is in the background.
+  const typingIn = content.contains(document.activeElement) && document.activeElement.matches('.env-filter') ? document.activeElement : null;
   title.textContent = RAIL[state.section][1];
   actions.textContent = '';
   content.textContent = '';
