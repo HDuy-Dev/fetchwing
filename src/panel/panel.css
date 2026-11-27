@@ -115,6 +115,15 @@ svg.i { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-widt
 .list-row .sub { color: var(--faint); font-size: 12px; }
 .list-row[aria-current="true"] { background: var(--select); }
 .list-row .switch { margin-left: auto; }
+.env-filter { width: 100%; height: 28px; margin-bottom: 4px; padding: 0 8px; border: 1px solid var(--control); border-radius: var(--r-md); background: var(--bg); outline: none; }
+.env-filter:focus { border-color: var(--accent-line); }
+.env-item { gap: 4px; padding-right: 4px; cursor: pointer; }
+.env-item > svg.i { margin-right: 4px; color: var(--faint); }
+.env-item .ibtn { width: 24px; height: 24px; flex-shrink: 0; }
+.env-hover { opacity: 0; }
+.env-item:hover .env-hover, .env-item:focus-within .env-hover { opacity: 1; }
+.env-slot { width: 24px; justify-content: center; flex-shrink: 0; }
+@media (hover: none) { .env-hover { opacity: 1; } }
 .search .ml-auto { color: var(--faint); }
 .dialog h3 { margin: 4px 0 0; font-size: 12px; font-weight: 600; }
 .dialog .list-row { min-height: 30px; }

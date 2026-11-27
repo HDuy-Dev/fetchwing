@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { copyName, savableVars, hintName, envPatch, sameEnv } from '../src/lib/env-form.js';
+import { copyName, savableVars, hintName, envPatch, sameEnv, filterEnvs } from '../src/lib/env-form.js';
 
 const v = (key, value = '') => ({ key, value, secret: false });
 
@@ -30,4 +30,11 @@ test('sameEnv ignores blank rows, so our own save does not redraw the table', ()
   assert.equal(sameEnv('Local', [v('a', '2')], env), false);
   assert.equal(sameEnv('Other', [v('a', '1')], env), false);
   assert.equal(sameEnv('Local', [{ ...v('a', '1'), secret: true }], env), false);
+});
+
+test('filterEnvs matches names, ignoring case and outer spaces', () => {
+  const envs = [{ name: 'SO1 DEVICE_K2' }, { name: 'Local' }];
+  assert.deepEqual(filterEnvs(envs, '  device '), [envs[0]]);
+  assert.deepEqual(filterEnvs(envs, ''), envs);
+  assert.deepEqual(filterEnvs(envs, 'zzz'), []);
 });

@@ -12,6 +12,7 @@ import { initSplit, initSideResize } from './split.js';
 import { renderResponse } from './response-view.js';
 import { renderMockEditor, mockFromResponse, setMockOn } from './mock-editor.js';
 import { createEnvView } from './env-view.js';
+import { renderEnvList } from './env-list.js';
 import { copyName } from '../lib/env-form.js';
 import { tabKind, insertTab, pruneTabs } from '../lib/tab-model.js';
 import { openSettings } from './settings-view.js';
@@ -659,10 +660,20 @@ const pauseAll = async () => {
 
 // ---------- sidebar sections ----------
 
+const setActiveEnv = id => mutate({ type: 'setActiveEnv', id });
+
+const envListHandlers = {
+  onOpen: openEnvTab,
+  onSetActive: setActiveEnv,
+  onDuplicate: duplicateEnv,
+  onDelete: id => mutate({ type: 'deleteEnvironment', id }),
+};
+
 function renderSide() {
   const title = $('sideTitle');
   const actions = $('sideActions');
   const content = $('sideContent');
+  const typingIn = content.querySelector('.env-filter:focus');
   title.textContent = RAIL[state.section][1];
   actions.textContent = '';
   content.textContent = '';
@@ -682,17 +693,7 @@ function renderSide() {
     renderTree(tree, state.ws, state.selectedId, treeHandlers);
   } else if (state.section === 'environments') {
     actions.append(iconButton('plus', 'New environment', createEnv));
-    const envs = liveEnvironments(state.ws);
-    if (!envs.length) content.append(el('div', { class: 'side-empty' }, 'No environments yet.'));
-    for (const env of envs) {
-      const active = env.id === state.ws.activeEnvId;
-      content.append(el('button', {
-        type: 'button', class: 'list-row', 'aria-current': active ? 'true' : undefined,
-        onclick: () => openEnvTab(env.id),
-      }, icon('braces'), el('span', { class: 'name' }, env.name),
-      el('span', { class: 'sub' }, String(env.vars.length)),
-      active ? el('span', { class: 'mdot', style: 'background:var(--accent)', title: 'Active', 'aria-label': 'Active' }) : null));
-    }
+    renderEnvList(content, state.ws, tabKind(state.ws, state.activeId) === 'env' ? state.activeId : null, envListHandlers);
   } else if (state.section === 'flows') {
     actions.append(iconButton('plus', 'New flow', newFlow));
     const list = el('div');
@@ -719,6 +720,7 @@ function renderSide() {
       }, el('span', { class: `m ${r.method}` }, r.method), el('span', { class: 'name' }, r.name), sw));
     }
   }
+  if (typingIn?.isConnected) typingIn.focus();
   const railMocks = document.querySelector('.rail [data-section="mocks"]');
   railMocks.querySelector('.n')?.remove();
   if (mocksOn().length) railMocks.append(el('span', { class: 'n mdot', 'aria-hidden': 'true' }));
@@ -752,14 +754,14 @@ function render() {
     store.set('flow', null);
   }
 
-  renderTopbar();
-  renderSide();
-  if (renderFlowMain()) return;
-
   // The main area shows the active tab; selecting a folder keeps the last one open.
   const activeId = tabKind(state.ws, state.selectedId) ? state.selectedId
     : state.openTabs.includes(state.activeId) ? state.activeId : state.openTabs[state.openTabs.length - 1] ?? null;
   state.activeId = activeId;
+
+  renderTopbar();
+  renderSide();
+  if (renderFlowMain()) return;
   drawTabs();
 
   const kind = activeId ? tabKind(state.ws, activeId) : null;

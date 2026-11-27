@@ -20,3 +20,8 @@ export function sameEnv(name, vars, env) {
   const flat = list => JSON.stringify(list.map(v => [v.key, v.value, Boolean(v.secret)]));
   return flat(patch.vars) === flat(env.vars);
 }
+
+export function filterEnvs(envs, query) {
+  const needle = query.trim().toLowerCase();
+  return needle ? envs.filter(e => e.name.toLowerCase().includes(needle)) : envs;
+}
