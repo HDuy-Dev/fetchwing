@@ -32,8 +32,43 @@ export function valueSummary(value, secret) {
 
 // The value after a paste that a one-line input would flatten, or null to let the browser paste.
 export function pastedValue(current, start, end, pasted) {
-  if (!/[\r\n]/.test(pasted.trimEnd())) return null;
+  if (!/[\r\n]/.test(pasted.trim())) return null;
   return current.slice(0, start) + pasted.replace(/\r\n?/g, '\n') + current.slice(end);
+}
+
+// How the engine words an unexpected character: it quotes the text and gives no position.
+const unexpected = /is not valid JSON$/;
+
+function errorOf(text) {
+  try {
+    JSON.parse(text);
+    return '';
+  } catch (e) {
+    return e.message;
+  }
+}
+
+// A prefix that stops short of that character fails some other way, so the
+// character ends the shortest prefix that fails like this.
+function unexpectedAt(text) {
+  let low = 1;
+  let high = text.length;
+  while (low < high) {
+    const middle = (low + high) >> 1;
+    if (unexpected.test(errorOf(text.slice(0, middle)))) high = middle;
+    else low = middle + 1;
+  }
+  return low - 1;
+}
+
+// Where and why parsing failed. The engine's own message may quote the text, so
+// only wording known not to is passed on.
+function parseFault(text, message) {
+  const at = /position (\d+)/.exec(message);
+  if (at) return { position: Number(at[1]), reason: message.replace(/( in JSON)? at position.*$/s, '') };
+  if (unexpected.test(message)) return { position: unexpectedAt(text), reason: 'Unexpected character' };
+  if (message.startsWith('Unexpected end of JSON')) return { position: text.length, reason: 'Unexpected end of JSON input' };
+  return null;
 }
 
 export function jsonState(text) {
@@ -42,11 +77,10 @@ export function jsonState(text) {
     JSON.parse(text);
     return { valid: true };
   } catch (e) {
-    const at = /position (\d+)/.exec(e.message);
-    if (!at) return { valid: false, message: e.message };
-    const before = text.slice(0, Number(at[1])).split('\n');
-    const reason = e.message.replace(/( in JSON)? at position.*$/s, '');
-    return { valid: false, message: `Line ${before.length}, column ${before.at(-1).length + 1}: ${reason}` };
+    const fault = parseFault(text, e.message);
+    if (!fault) return { valid: false, message: 'Not valid JSON' };
+    const before = text.slice(0, fault.position).split('\n');
+    return { valid: false, message: `Line ${before.length}, column ${before.at(-1).length + 1}: ${fault.reason}` };
   }
 }
 
@@ -64,10 +98,18 @@ export function savedText(original, edited) {
 
 const STRING_OR_NUMBER = /"(?:[^"\\]|\\.)*"|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/g;
 
+// A number's value, spelled one way: 1.10, 1.1 and 11e-1 come out the same.
+function decimal(number) {
+  const [, sign, whole, fraction = '', exponent = 0] = /^(-?)(\d+)(?:\.(\d+))?(?:[eE]([+-]?\d+))?$/.exec(number);
+  const digits = (whole + fraction).replace(/^0+/, '');
+  const kept = digits.replace(/0+$/, '');
+  return kept ? `${sign}${kept}e${Number(exponent) - fraction.length + digits.length - kept.length}` : '0';
+}
+
+// Whether the number read from `token` is written back as another one.
 function isUnsafe(token) {
-  if (/^-?\d+$/.test(token)) return !Number.isSafeInteger(Number(token));
-  const digits = token.split(/[eE]/)[0].replace(/[-.]/g, '').replace(/^0+/, '').replace(/0+$/, '');
-  return digits.length > 17;
+  const read = Number(token);
+  return !Number.isFinite(read) || decimal(String(read)) !== decimal(token);
 }
 
 // Whether reading `text` as values would change a number, in it or in a JSON string it holds.
@@ -97,6 +139,13 @@ export function findVar(vars, { key, index, value, unique = true }) {
   if (same(vars[index])) return index;
   const matches = vars.flatMap((v, i) => (same(v) ? [i] : []));
   return matches.length === 1 ? matches[0] : -1;
+}
+
+// The row showing `v`: its own place among the table's variables, or, once the
+// table has been reloaded from what is saved, wherever it is found; -1 for neither.
+export function rowOf(vars, v, target) {
+  const at = vars.indexOf(v);
+  return at >= 0 ? at : findVar(vars, target);
 }
 
 export function saveCheck(base, current, forced) {

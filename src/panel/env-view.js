@@ -1,7 +1,7 @@
 // One environment, shown in its own tab: name, actions and the variable table.
 
 import { hintName, envPatch, sameEnv, savableVars } from '../lib/env-form.js';
-import { isLargeValue, valueSummary, pastedValue, findVar } from '../lib/env-value.js';
+import { isLargeValue, valueSummary, pastedValue, findVar, rowOf } from '../lib/env-value.js';
 import { openValueDialog } from './value-dialog.js';
 import { el, icon, iconButton, debounce } from './ui.js';
 
@@ -164,18 +164,18 @@ export function createEnvView(container, env, { getWs, mutate, send, onDuplicate
         });
         onPendingChange();
         const res = await sent;
-        if (res?.ok) showSaved(target, text);
+        if (res?.ok) showSaved(v, target, text);
         return Boolean(res?.ok);
       },
       // Back to the row it was opened from, if it is still on screen.
-      onClosed: () => rows.children[index]?.querySelector('.env-chip, .env-open')?.focus(),
+      onClosed: () => rows.children[rowOf(vars, v, target)]?.querySelector('.env-chip, .env-open')?.focus(),
     });
   }
 
   // Puts the dialog's value into its row now, so the redraw that follows the save
   // finds nothing new and leaves the focus alone.
-  function showSaved(target, text) {
-    const at = findVar(vars, target);
+  function showSaved(v, target, text) {
+    const at = rowOf(vars, v, target);
     if (at < 0 || !rows.children[at]) return;
     vars[at].value = text;
     redrawRow(rows.children[at], vars[at]);
