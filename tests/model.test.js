@@ -219,3 +219,10 @@ test('applyEnvChanges with duplicate keys sets the last one and unsets all', () 
   const out = apply(ws, { type: 'applyEnvChanges', id: 'e', changes: [{ op: 'set', key: 't', value: 'new' }, { op: 'unset', key: 'd' }] });
   assert.deepEqual(out.environments.e.vars, [{ key: 't', value: 'a', secret: false }, { key: 't', value: 'new', secret: true }]);
 });
+
+test('updateFlow keeps logic blocks and unknown block fields', () => {
+  let ws = apply(emptyWorkspace(), { type: 'addFlow', id: 'f', name: 'F' });
+  const blocks = [{ id: 'l', kind: 'logic', name: 'Calc', script: 'return { a: 1 }', x: 0, y: 0, outputs: [{ name: 'a' }], extra: 1 }];
+  ws = apply(ws, { type: 'updateFlow', id: 'f', patch: { blocks } }, 5);
+  assert.deepEqual(ws.flows.f.blocks, blocks);
+});

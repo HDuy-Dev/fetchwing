@@ -50,7 +50,7 @@ function sameUpstream(snapFlow, flow, blockId) {
     const a = snapBlocks.get(id);
     const b = curBlocks.get(id);
     if (!a || !b) return false;
-    if (a.requestId !== b.requestId) return false;
+    if ((a.kind ?? 'request') !== (b.kind ?? 'request') || a.requestId !== b.requestId) return false;
     if (JSON.stringify(a.outputs || []) !== JSON.stringify(b.outputs || [])) return false;
   }
   const within = f => f.edges.filter(e => scope.has(e.from) && scope.has(e.to)).map(edgeKey).sort();

@@ -339,3 +339,45 @@ test('a throw in a later block ends the record stopped with a note', async () =>
   assert.equal(timers.count(), 1); // only the abandon watch
   runner.dispose();
 });
+
+const logicBlock = (id, script, outputs = []) => ({ id, kind: 'logic', name: 'Logic', script, x: 0, y: 0, outputs: outputs.map(name => ({ name })) });
+
+test('logic blocks are not in flowOrigins', () => {
+  const ws = makeWs();
+  ws.flows.f.blocks.push(logicBlock('l', 'return {}'));
+  assert.deepEqual(flowOrigins(ws, ws.flows.f), ['https://one.test', 'https://two.test']);
+});
+
+test('a logic block runs through the logic runner and its fingerprint is in the snapshot', async () => {
+  const ws = makeWs();
+  ws.flows.f = { ...ws.flows.f, blocks: [logicBlock('l', "return { v: fw.vars.get('base') }", ['v'])], edges: [] };
+  const jobs = [];
+  const createLogicRunner = () => ({ run: async job => { jobs.push(job); return { logs: [], value: { v: 1 } }; }, cancel() {} });
+  const runner = createRunner({ flowId: 'f', getWs: () => ws, send: controlledSend().send, storage: sharedStore().page(), timers: fakeTimers(), createLogicRunner });
+  await runner.run();
+  assert.equal(jobs[0].mode, 'logic');
+  assert.deepEqual(jobs[0].vars, { base: 'https://one.test' });
+  assert.deepEqual(jobs[0].env, { base: 'https://one.test' });
+  assert.ok(runner.record.snapshot.fingerprints.l);
+  assert.deepEqual(runner.record.blocks.l.outputs, { v: 1 });
+  runner.dispose();
+});
+
+test('stop cancels the logic runner', async () => {
+  const ws = makeWs();
+  ws.flows.f = { ...ws.flows.f, blocks: [logicBlock('l', '')], edges: [] };
+  let release;
+  let cancels = 0;
+  const createLogicRunner = () => ({
+    run: () => new Promise(r => { release = r; }),
+    cancel() { cancels++; release?.({ logs: [], cancelled: true, error: 'Stopped' }); },
+  });
+  const runner = createRunner({ flowId: 'f', getWs: () => ws, send: controlledSend().send, storage: sharedStore().page(), timers: fakeTimers(), createLogicRunner });
+  const done = runner.run();
+  await tick();
+  runner.stop();
+  await done;
+  assert.equal(cancels, 1);
+  assert.equal(runner.record.blocks.l.errorKind, 'cancelled');
+  runner.dispose();
+});

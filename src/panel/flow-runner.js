@@ -3,7 +3,7 @@
 // page running it went away.
 
 import { runFlow } from '../lib/flow-run.js';
-import { analyzeFlow, blockFingerprint, upstream } from '../lib/flow-graph.js';
+import { analyzeFlow, fingerprintOf, upstream } from '../lib/flow-graph.js';
 import { RECORD_PREFIX, HEARTBEAT_MS, newRecord, isAbandoned, abandon, fitRecords } from '../lib/flow-record.js';
 import { envVars, resolveRequest } from '../lib/vars.js';
 
@@ -12,10 +12,6 @@ export const runFailedNote = err => `Run failed: ${err?.message || err}`;
 const WATCH_MS = 2000;
 
 const scopeOf = (flow, from) => id => from == null || id === from || upstream(flow, id).has(from);
-const liveRequest = (ws, id) => {
-  const item = ws.items?.[id];
-  return item && item.type === 'request' && !item.deleted ? item : null;
-};
 
 // The origins a run will send to: blocks in scope that are neither mocked, deleted nor missing a variable.
 export function flowOrigins(ws, flow, { from = null } = {}) {
@@ -35,8 +31,9 @@ export function flowOrigins(ws, flow, { from = null } = {}) {
   return [...origins];
 }
 
-// options: { flowId, getWs, send(msg), storage (chrome.storage.session), onRecord(record|null), now?, timers? }
-export function createRunner({ flowId, getWs, send, storage, onRecord = () => {}, now = Date.now, timers = globalThis }) {
+// options: { flowId, getWs, send(msg), storage (chrome.storage.session), onRecord(record|null), now?, timers?,
+//   createLogicRunner?() -> { run(job), cancel() } }
+export function createRunner({ flowId, getWs, send, storage, onRecord = () => {}, now = Date.now, timers = globalThis, createLogicRunner = null }) {
   const key = RECORD_PREFIX + flowId;
   let record = null;
   let loaded = false;
@@ -71,6 +68,7 @@ export function createRunner({ flowId, getWs, send, storage, onRecord = () => {}
     if (!active || active.controller.signal.aborted) return;
     active.controller.abort();
     for (const k of active.keys) send({ type: 'cancelSend', key: k });
+    active.logic?.cancel();
   }
 
   // Two runs started in two places within one storage round trip: the earlier one wins.
@@ -154,13 +152,14 @@ export function createRunner({ flowId, getWs, send, storage, onRecord = () => {}
         blocks[b.id] = previous?.blocks?.[b.id] ?? { state: 'idle' };
         continue;
       }
-      const request = liveRequest(ws, b.requestId);
-      if (request) fingerprints[b.id] = blockFingerprint(request, env);
+      const fp = fingerprintOf(ws, b, env);
+      if (fp !== null) fingerprints[b.id] = fp;
     }
     const runId = crypto.randomUUID();
     const keys = new Set();
     const controller = new AbortController();
-    const mine = { runId, controller, keys, yielded: false };
+    const logic = createLogicRunner?.() ?? null;
+    const mine = { runId, controller, keys, logic, yielded: false };
     active = mine;
     ownRunId = runId;
     loaded = true;
@@ -183,12 +182,14 @@ export function createRunner({ flowId, getWs, send, storage, onRecord = () => {}
           keys.add(sendKey);
           try { return await send({ type: 'send', requestId, vars, key: sendKey }); } finally { keys.delete(sendKey); }
         },
+        runLogic: logic ? ({ script, vars, env: e }) => logic.run({ mode: 'logic', script, vars, env: e }) : null,
         onUpdate: (id, res) => put({ ...record, blocks: { ...record.blocks, [id]: res } }),
       });
     } catch (err) {
       failure = err;
       controller.abort();
       for (const k of keys) send({ type: 'cancelSend', key: k });
+      logic?.cancel();
     } finally {
       if (beat !== null) timers.clearInterval(beat);
       active = null;

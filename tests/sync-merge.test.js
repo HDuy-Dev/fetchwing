@@ -236,3 +236,12 @@ test('a Drive file from an older Fetchwing keeps local flows', () => {
 test('toRemote carries flows', () => {
   assert.deepEqual(toRemote({ ...ws(), flows: { f: flow('f', 1) } }).flows.f.name, 'f');
 });
+
+test('logic blocks survive toRemote and merge unchanged', () => {
+  const blocks = [{ id: 'l', kind: 'logic', name: 'Calc', script: 'return { a: 1 }', x: 16, y: 32, outputs: [{ name: 'a' }] }];
+  const local = { ...ws(), flows: { f: flow('f', 1) } };
+  const remoteWs = { ...ws(), flows: { f: flow('f', 9, { blocks }) } };
+  const remote = toRemote(remoteWs);
+  assert.deepEqual(remote.flows.f.blocks, blocks);
+  assert.deepEqual(mergeRemote(local, remote).workspace.flows.f.blocks, blocks);
+});

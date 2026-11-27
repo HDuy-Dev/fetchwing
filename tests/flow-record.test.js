@@ -160,3 +160,21 @@ test('fitRecords measures UTF-8 bytes, not characters', () => {
   const out = fitRecords(recs, chars + 100); // fits by characters, not by bytes
   assert.equal(out[0].blocks.a.response.dropped, true);
 });
+
+const lgc = (id, script, outputs = ['v']) => ({ id, kind: 'logic', name: 'Logic', script, x: 0, y: 0, outputs: outputs.map(name => ({ name })) });
+const logicFlow = (b = lgc('b', 'return { v: 1 }')) => ({ id: 'f', name: 'F', blocks: [blk('a', 'ra'), b, blk('c')], edges: [{ from: 'a', to: 'b' }, { from: 'b', to: 'c' }] });
+
+test('runFromHere stays enabled with a warning when an upstream logic script changed', () => {
+  const now = logicFlow(lgc('b', 'return { v: 2 }'));
+  assert.deepEqual(runFromHere(mkRecord(logicFlow()), now, 'c', { envChanged: false, outdatedIds: ['b'] }), { enabled: true, warn: 'Using outputs from an earlier run' });
+});
+
+test('runFromHere is off when upstream logic outputs were renamed', () => {
+  const now = logicFlow(lgc('b', 'return { v: 1 }', ['w']));
+  assert.equal(runFromHere(mkRecord(logicFlow()), now, 'c', opts).enabled, false);
+});
+
+test('runFromHere is off when an upstream block changed kind', () => {
+  const now = logicFlow({ ...blk('b'), outputs: [{ name: 'v' }] });
+  assert.equal(runFromHere(mkRecord(logicFlow()), now, 'c', opts).enabled, false);
+});

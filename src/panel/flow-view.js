@@ -6,6 +6,7 @@ import { envVars } from '../lib/vars.js';
 import { createCanvas } from './flow-canvas.js';
 import { createDetails } from './flow-details.js';
 import { createRunner, flowOrigins } from './flow-runner.js';
+import { createScriptRunner, iframeFrame } from './script-runner.js';
 import { ensureOrigins } from './permissions.js';
 import { openSearch } from './search.js';
 import { el, icon, iconButton, toast } from './ui.js';
@@ -48,7 +49,10 @@ export function mountFlowView(container, { flowId, getWs, mutate, send, store, i
   let selectedId = null;
   let detailsOpen = true;
   let run = null; // the latest run record, from this page or another one
-  const runner = createRunner({ flowId, getWs, send, storage, onRecord: record => { run = record; draw(); } });
+  const runner = createRunner({
+    flowId, getWs, send, storage, onRecord: record => { run = record; draw(); },
+    createLogicRunner: () => createScriptRunner({ createFrame: iframeFrame() }),
+  });
 
   // Must run inside the click: Chrome only shows the permission prompt during a user gesture.
   function runOrStop(from = null) {
