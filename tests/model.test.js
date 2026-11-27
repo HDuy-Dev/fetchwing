@@ -22,6 +22,7 @@ test('newRequest defaults', () => {
   assert.deepEqual(newRequest({ url: 'https://x.dev' }), {
     method: 'GET', url: 'https://x.dev', headers: [],
     body: { mode: 'none', raw: '', fields: [] },
+    script: '',
     mock: { enabled: false, status: 200, headers: [], body: '', delayMs: 0 },
   });
 });
@@ -170,4 +171,35 @@ test('workspaces saved before flows still work', () => {
   const ws = apply(old, { type: 'addFlow', id: 'f', name: 'F' });
   assert.ok(ws.flows.f);
   assert.ok(apply(old, { type: 'addEnvironment', id: 'e2', name: 'X' }).flows);
+});
+
+test('updateRequest saves script', () => {
+  let ws = emptyWorkspace();
+  ws = apply(ws, { type: 'addItem', id: 'r1', itemType: 'request', parentId: rootId(ws), name: 'R' });
+  ws = apply(ws, { type: 'updateRequest', id: 'r1', patch: { script: 'console.log(1)' } });
+  assert.equal(ws.items.r1.script, 'console.log(1)');
+});
+
+const envWith = vars => {
+  let ws = emptyWorkspace();
+  ws = apply(ws, { type: 'addEnvironment', id: 'e', name: 'E' });
+  return apply(ws, { type: 'updateEnvironment', id: 'e', patch: { vars } });
+};
+
+test('applyEnvChanges sets, updates and unsets by key', () => {
+  const ws = envWith([{ key: 'a', value: '1', secret: true }, { key: 'b', value: '2', secret: false }]);
+  const out = apply(ws, { type: 'applyEnvChanges', id: 'e', changes: [
+    { op: 'set', key: 'a', value: '9' }, { op: 'set', key: 'c', value: '3' }, { op: 'unset', key: 'b' },
+  ] }, 500);
+  assert.deepEqual(out.environments.e.vars, [{ key: 'a', value: '9', secret: true }, { key: 'c', value: '3', secret: false }]);
+  assert.equal(out.environments.e.updatedAt, 500);
+});
+
+test('applyEnvChanges on missing env', () => {
+  assert.deepEqual(applyMutation(emptyWorkspace(), { type: 'applyEnvChanges', id: 'nope', changes: [] }, 1), { error: 'not_found' });
+});
+
+test('applyEnvChanges ignores empty keys', () => {
+  const out = apply(envWith([]), { type: 'applyEnvChanges', id: 'e', changes: [{ op: 'set', key: '', value: 'x' }] });
+  assert.deepEqual(out.environments.e.vars, []);
 });
